@@ -140,3 +140,24 @@ set_target_properties(mm_3ds PROPERTIES CXX_STANDARD 20 EXCLUDE_FROM_ALL TRUE)
 add_custom_command(TARGET mm_3ds POST_BUILD
     COMMAND "${DEVKITPRO}/tools/bin/3dsxtool" $<TARGET_FILE:mm_3ds> $<TARGET_FILE:mm_3ds>.3dsx
     COMMENT "3dsxtool -> mm_3ds.3dsx")
+
+# CIA: mesmo app.rsf do soh-3ds com título/ID próprios (não sobrescreve a
+# instalação do SoH) e 178 MB no New 3DS, como o perfil do soh_3ds_old.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia/app.rsf" _mm_rsf)
+string(REPLACE "Title                   : Ship of Harkinian" "Title                   : 2 Ship 2 Harkinian" _mm_rsf "${_mm_rsf}")
+string(REPLACE "ProductCode             : CTR-P-SOH3" "ProductCode             : CTR-P-2SH3" _mm_rsf "${_mm_rsf}")
+string(REPLACE "UniqueId                : 0x53480" "UniqueId                : 0x25348" _mm_rsf "${_mm_rsf}")
+string(REPLACE "SystemModeExt                 : 124MB" "SystemModeExt                 : 178MB" _mm_rsf "${_mm_rsf}")
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf" CONTENT "${_mm_rsf}")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs/README.txt"
+    "Copie mm.o2r e 2ship.o2r para /3ds/2ship no cartao SD.\n")
+add_custom_command(TARGET mm_3ds POST_BUILD
+    COMMAND "${DEVKITPRO}/tools/bin/makerom" -f cia
+        -o "${CMAKE_CURRENT_BINARY_DIR}/mm_3ds.cia" -elf "$<TARGET_FILE:mm_3ds>"
+        -rsf "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf"
+        -icon "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia/icon.icn"
+        -banner "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia/banner.bnr"
+        "-DROMFS_ROOT=${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs" -target t -exefslogo
+    COMMENT "makerom -> mm_3ds.cia"
+    VERBATIM)
