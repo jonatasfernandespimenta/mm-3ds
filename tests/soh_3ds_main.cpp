@@ -322,15 +322,19 @@ __attribute__((constructor(101))) static void SohCtrEarlyLogInit() {
     // sdmc:/3ds/soh/logs/SoH-3DS.log where FTP can reach it.
     // First launch must work on a blank SD. Create the data directory before
     // pinning cwd; the native setup screen will install its archives there.
+// MM 3DS: o build do Majora's Mask define SOH3DS_DATA_DIR como "sdmc:/3ds/2ship".
+#ifndef SOH3DS_DATA_DIR
+#define SOH3DS_DATA_DIR "sdmc:/3ds/soh"
+#endif
     if ((mkdir("sdmc:/3ds", 0777) != 0 && errno != EEXIST) ||
-        (mkdir("sdmc:/3ds/soh", 0777) != 0 && errno != EEXIST) ||
-        chdir("sdmc:/3ds/soh") != 0) {
-        fprintf(stderr, "soh-3ds: FATAL: could not create/use sdmc:/3ds/soh (errno=%d). Exiting.\n", errno);
+        (mkdir(SOH3DS_DATA_DIR, 0777) != 0 && errno != EEXIST) ||
+        chdir(SOH3DS_DATA_DIR) != 0) {
+        fprintf(stderr, "soh-3ds: FATAL: could not create/use " SOH3DS_DATA_DIR " (errno=%d). Exiting.\n", errno);
         gfxInitDefault();
         consoleInit(GFX_TOP, nullptr);
         printf("\n\n  Ship of Harkinian 3DS\n  ---------------------\n\n"
                "  The app could not create or open:\n\n"
-               "       sd:/3ds/soh\n\n"
+               "       " SOH3DS_DATA_DIR "\n\n"
                "  Check that the SD card is writable and\n"
                "  that no file is using that name.\n\n"
                "  Press START to exit.\n");

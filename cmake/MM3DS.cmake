@@ -49,10 +49,19 @@ set_target_properties(mm_decomp PROPERTIES C_STANDARD 11 EXCLUDE_FROM_ALL TRUE)
 file(GLOB_RECURSE MM_ENH_SOURCES "${MM_DIR}/2s2h/*.cpp" "${MM_DIR}/2s2h/*.c")
 # Extrator roda no PC (mm.o2r vai pronto no SD).
 list(FILTER MM_ENH_SOURCES EXCLUDE REGEX "/2s2h/Extractor/")
+# ponytail: pictógrafo colorido precisa de libpng (3ds-libpng exige root no
+# dkp-pacman). Se auto-registra, então tirar o arquivo só some com a opção.
+list(FILTER MM_ENH_SOURCES EXCLUDE REGEX "/Enhancements/Items/ColorPictograph\\.cpp$")
 list(LENGTH MM_ENH_SOURCES MM_ENH_COUNT)
 message(STATUS "mm 2s2h layer: ${MM_ENH_COUNT} translation units")
 
 add_library(mm_enhancement STATIC ${MM_ENH_SOURCES})
+# O mixer do 2S2H inclui <opus/opus.h>; o opus vendorizado expõe os headers
+# direto em include/. Um symlink resolve sem mexer no fonte.
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/mm-shim")
+file(CREATE_LINK "${CMAKE_CURRENT_SOURCE_DIR}/third_party/opus/include"
+    "${CMAKE_CURRENT_BINARY_DIR}/mm-shim/opus" SYMBOLIC)
+target_include_directories(mm_enhancement PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/mm-shim")
 target_include_directories(mm_enhancement PRIVATE ${MM_INCLUDES}
     "${LUS_BUILD}/_deps/threadpool-src/include"
     "${LUS_BUILD}/_deps/imgui-src"
@@ -66,5 +75,70 @@ target_include_directories(mm_enhancement PRIVATE ${MM_INCLUDES}
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/opusfile/include"
     "${PORTLIBS}/include/SDL2")
 target_compile_definitions(mm_enhancement PRIVATE ${MM_COMMON_DEFS})
+# O 2S2H depende dos PCH para ordem de include (vários .cpp incluem BenPort.h
+# dentro de extern "C" assumindo que já foi incluído). Mesma lista do upstream.
+target_precompile_headers(mm_enhancement PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:<libultraship/bridge/consolevariablebridge.h$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<ship/Context.h$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<ship/resource/ResourceManager.h$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<ship/window/Window.h$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<spdlog/spdlog.h$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<string$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<vector$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<map$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<unordered_map$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<filesystem$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<fstream$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<algorithm$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<functional$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<variant$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:${MM_DIR}/2s2h/GameInteractor/GameInteractor.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:${MM_DIR}/include/variables.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:${MM_DIR}/include/functions.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:${MM_DIR}/include/macros.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:${MM_DIR}/include/z64.h>")
 target_compile_options(mm_enhancement PRIVATE -w -fpermissive -Os)
 set_target_properties(mm_enhancement PROPERTIES CXX_STANDARD 20 EXCLUDE_FROM_ALL TRUE)
+
+# --- o jogo: mm_3ds ---------------------------------------------------------
+# Mesmo esqueleto do soh_3ds_old: main do decomp (mm/src/code/main.c) chama
+# InitOTR do BenPort.cpp; .o2r pré-extraídos no SD, sem extrator no console.
+add_executable(mm_3ds tests/soh_3ds_main.cpp
+    src/compat3ds/logging_3ds.cpp
+    src/compat3ds/sleep_3ds.cpp
+    src/compat3ds/excluded_stubs.cpp
+    src/compat3ds/network_stubs.cpp
+    src/compat3ds/compact_zip.cpp
+    src/setup/mm_prebuilt_3ds.cpp)
+target_compile_definitions(mm_3ds PRIVATE SOH3DS_DATA_DIR="sdmc:/3ds/2ship")
+target_include_directories(mm_3ds PRIVATE
+    src tests src/compat3ds
+    "${LUS_BUILD}/_deps/imgui-src"
+    "${LUS_BUILD}/_deps/imgui-src/backends"
+    "${LUS_BUILD}/_deps/nlohmann_json-src/include"
+    "${LUS_BUILD}/_deps/threadpool-src/include"
+    ${MM_INCLUDES} "${PORTLIBS}/include/SDL2")
+target_link_libraries(mm_3ds PRIVATE
+    -Wl,--start-group
+    -Wl,--whole-archive mm_enhancement -Wl,--no-whole-archive
+    mm_decomp ${SOH3DS_GFX_LIB}
+    "${LUS_BUILD}/src/libultraship.a"
+    -Wl,--end-group
+    "${LUS_BUILD}/libImGui.a"
+    "${LUS_BUILD}/_deps/prism-build/libprism.a"
+    "${LUS_BUILD}/libstb.a"
+    "${LUS_BUILD}/libmonocypher.a"
+    "${PORTLIBS}/lib/libzip.a" "${PORTLIBS}/lib/libspdlog.a"
+    "${PORTLIBS}/lib/libtinyxml2.a" "${PORTLIBS}/lib/libzlibstatic.a"
+    ${LIB_SDL2} ${LIB_CITRO3D} ${LIB_CTRU} m)
+target_compile_options(mm_3ds PRIVATE -w -fpermissive -Os)
+# Mesmos wraps do soh_3ds (pilha mínima de threads, malloc instrumentado).
+target_link_options(mm_3ds PRIVATE -Wl,--wrap=__syscall_thread_create -Wl,--wrap=threadCreate
+    -Wl,--wrap=malloc)
+set_target_properties(mm_3ds PROPERTIES CXX_STANDARD 20 EXCLUDE_FROM_ALL TRUE)
+
+# CIA: reaproveita o app.rsf do soh-3ds (178 MB no New 3DS). Título próprio
+# vem depois; por ora é só pra rodar no Azahar.
+add_custom_command(TARGET mm_3ds POST_BUILD
+    COMMAND "${DEVKITPRO}/tools/bin/3dsxtool" $<TARGET_FILE:mm_3ds> $<TARGET_FILE:mm_3ds>.3dsx
+    COMMENT "3dsxtool -> mm_3ds.3dsx")

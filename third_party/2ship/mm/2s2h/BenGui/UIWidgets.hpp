@@ -1181,7 +1181,7 @@ bool RadioButton(const char* label, bool active);
 bool CVarRadioButton(const char* text, const char* cvarName, int32_t id, const RadioButtonsOptions& options);
 bool StateButton(const char* str_id, const char* label, ImVec2 size, UIWidgets::ButtonOptions options,
                  ImGuiButtonFlags flags = ImGuiButtonFlags_None);
-void DrawFlagArray32(const std::string& name, uint32_t& flags, Colors color = Colors::LightBlue);
+void DrawFlagArray32(const std::string& name, u32& flags, Colors color = Colors::LightBlue);
 void DrawFlagArray16(const std::string& name, uint16_t& flags, Colors color = Colors::LightBlue);
 void DrawFlagTableArray16(const FlagTable& flagTable, uint16_t& flags);
 void DrawFlagTableArray16(const FlagTable& flagTable, uint16_t row, uint16_t& flags);

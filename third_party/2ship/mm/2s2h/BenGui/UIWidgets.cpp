@@ -1128,7 +1128,7 @@ bool CVarRadioButton(const char* text, const char* cvarName, int32_t id, const R
     return ret;
 }
 
-void DrawFlagArray32(const std::string& name, uint32_t& flags, Colors color) {
+void DrawFlagArray32(const std::string& name, u32& flags, Colors color) {
     ImGui::PushID(name.c_str());
     for (int32_t flagIndex = 0; flagIndex < 32; flagIndex++) {
         if ((flagIndex % 8) != 0) {

@@ -1487,7 +1487,9 @@ extern "C" char* ResourceMgr_LoadPlayerAnimByName(const char* animPath) {
 }
 
 extern "C" void ResourceMgr_PushCurrentDirectory(char* path) {
-    Fast::gfx_push_current_dir(path);
+    // 3DS: a LUS do soh-3ds removeu a pilha de diretórios (nada a lia). O MM só
+    // chama isto em código comentado (stubs.c), então vira no-op.
+    (void)path;
 }
 
 extern "C" Gfx* ResourceMgr_LoadGfxByName(const char* path) {
