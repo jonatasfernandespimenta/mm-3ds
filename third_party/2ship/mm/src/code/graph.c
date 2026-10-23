@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "prevent_bss_reordering.h"
 #include "z64.h"
 #include "regs.h"
@@ -394,6 +395,16 @@ void RunFrame() {
         osSyncPrintf("クラスサイズ＝%dバイト\n", size); // "Class size = %d bytes"
 
         runFrameContext.gameState = SystemArena_Malloc(size);
+#ifdef __3DS__
+        {
+            size_t maxFree, bytesFree, bytesAlloc;
+            SystemArena_GetSizes(&maxFree, &bytesFree, &bytesAlloc);
+            fprintf(stderr, "mm-3ds gamestate: ovl=%d size=%lu -> %p (sysArena maxFree=%lu free=%lu alloc=%lu)\n",
+                    (int)(runFrameContext.ovl - gGameStateOverlayTable), (unsigned long)size,
+                    (void*)runFrameContext.gameState, (unsigned long)maxFree, (unsigned long)bytesFree,
+                    (unsigned long)bytesAlloc);
+        }
+#endif
 
         memset(runFrameContext.gameState, 0, size); // fix
         GameState_Init(runFrameContext.gameState, runFrameContext.ovl->init, &runFrameContext.gfxCtx);
@@ -419,6 +430,11 @@ void RunFrame() {
         }
 
         runFrameContext.nextOvl = Graph_GetNextGameState(runFrameContext.gameState);
+#ifdef __3DS__
+        fprintf(stderr, "mm-3ds gamestate: fim de %p init=%p -> proximo ovl=%d\n", (void*)runFrameContext.gameState,
+                runFrameContext.gameState ? (void*)runFrameContext.gameState->init : NULL,
+                runFrameContext.nextOvl ? (int)(runFrameContext.nextOvl - gGameStateOverlayTable) : -1);
+#endif
         GameState_Destroy(runFrameContext.gameState);
         SystemArena_Free(runFrameContext.gameState);
         Overlay_FreeGameState(runFrameContext.ovl);

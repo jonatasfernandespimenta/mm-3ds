@@ -42,7 +42,7 @@ target_include_directories(mm_decomp PRIVATE ${MM_INCLUDES})
 target_compile_definitions(mm_decomp PRIVATE ${MM_COMMON_DEFS})
 # ponytail: -w -fpermissive pelo mesmo motivo do soh_decomp (GCC 16 promove
 # conversões ponteiro/inteiro a erro); -Os pelo orçamento de .text.
-target_compile_options(mm_decomp PRIVATE -w -fpermissive -Os)
+target_compile_options(mm_decomp PRIVATE -w -fpermissive -Os -g)
 set_target_properties(mm_decomp PROPERTIES C_STANDARD 11 EXCLUDE_FROM_ALL TRUE)
 
 # --- camada 2s2h (mm/2s2h) --------------------------------------------------
@@ -97,7 +97,7 @@ target_precompile_headers(mm_enhancement PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:${MM_DIR}/include/functions.h>"
     "$<$<COMPILE_LANGUAGE:CXX>:${MM_DIR}/include/macros.h>"
     "$<$<COMPILE_LANGUAGE:CXX>:${MM_DIR}/include/z64.h>")
-target_compile_options(mm_enhancement PRIVATE -w -fpermissive -Os)
+target_compile_options(mm_enhancement PRIVATE -w -fpermissive -Os -g)
 set_target_properties(mm_enhancement PROPERTIES CXX_STANDARD 20 EXCLUDE_FROM_ALL TRUE)
 
 # --- o jogo: mm_3ds ---------------------------------------------------------
