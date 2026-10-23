@@ -107,7 +107,8 @@ add_executable(mm_3ds tests/soh_3ds_main.cpp
     src/compat3ds/logging_3ds.cpp
     src/compat3ds/sleep_3ds.cpp
     src/compat3ds/excluded_stubs.cpp
-    src/setup/mm_prebuilt_3ds.cpp)
+    src/setup/mm_prebuilt_3ds.cpp
+    src/compat3ds/mm_throw_trace.cpp)
 target_compile_definitions(mm_3ds PRIVATE SOH3DS_DATA_DIR="sdmc:/3ds/2ship")
 target_include_directories(mm_3ds PRIVATE
     src tests src/compat3ds
@@ -132,7 +133,8 @@ target_link_libraries(mm_3ds PRIVATE
 target_compile_options(mm_3ds PRIVATE -w -fpermissive -Os)
 # Mesmos wraps do soh_3ds (pilha mínima de threads, malloc instrumentado).
 target_link_options(mm_3ds PRIVATE -Wl,--wrap=__syscall_thread_create -Wl,--wrap=threadCreate
-    -Wl,--wrap=malloc)
+    -Wl,--wrap=malloc
+    -Wl,--wrap=_ZSt20__throw_out_of_rangePKc -Wl,--wrap=_ZSt24__throw_out_of_range_fmtPKcz)
 set_target_properties(mm_3ds PROPERTIES CXX_STANDARD 20 EXCLUDE_FROM_ALL TRUE)
 
 # CIA: reaproveita o app.rsf do soh-3ds (178 MB no New 3DS). Título próprio
