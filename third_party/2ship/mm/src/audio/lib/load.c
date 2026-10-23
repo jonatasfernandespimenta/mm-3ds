@@ -124,6 +124,24 @@ size_t gFontMapSize;
 void AudioLoad_DecreaseSampleDmaTtls(void) {
     u32 i;
 
+#ifdef __3DS__
+    // MM 3DS: diagnóstico. As filas de reuso são indexadas por u8, então mais
+    // de 0x100 DMAs (ou lista nula) significa estado corrompido; sem isto o
+    // laço lê lixo para sempre e o jogo congela.
+    if (gAudioCtx.sampleDmas == NULL || gAudioCtx.sampleDmaCount > 0x100 ||
+        gAudioCtx.sampleDmaListSize1 > gAudioCtx.sampleDmaCount) {
+        static int sReported = 0;
+        if (!sReported) {
+            sReported = 1;
+            fprintf(stderr, "mm-3ds audio: sampleDmas CORROMPIDO dmas=%p count=%lu list1=%lu numNotes=%d resetStatus=%d specId=%d\n",
+                    (void*)gAudioCtx.sampleDmas, (unsigned long)gAudioCtx.sampleDmaCount,
+                    (unsigned long)gAudioCtx.sampleDmaListSize1, (int)gAudioCtx.numNotes,
+                    (int)gAudioCtx.resetStatus, (int)gAudioCtx.specId);
+        }
+        return;
+    }
+#endif
+
     for (i = 0; i < gAudioCtx.sampleDmaListSize1; i++) {
         SampleDma* dma = &gAudioCtx.sampleDmas[i];
 
@@ -287,6 +305,11 @@ void AudioLoad_InitSampleDmaBuffers(s32 numNotes) {
         gAudioCtx.sampleDmaReuseQueue1[i] = 0;
     }
 
+#ifdef __3DS__
+    fprintf(stderr, "mm-3ds audio: InitSampleDmaBuffers dmas=%p count=%lu numNotes=%d specUnk4=%d bufSize=%lu\n",
+            (void*)gAudioCtx.sampleDmas, (unsigned long)gAudioCtx.sampleDmaCount, (int)gAudioCtx.numNotes,
+            (int)gAudioCtx.audioBufferParameters.specUnk4, (unsigned long)gAudioCtx.sampleDmaBufSize);
+#endif
     gAudioCtx.sampleDmaReuseQueue1RdPos = 0;
     gAudioCtx.sampleDmaReuseQueue1WrPos = gAudioCtx.sampleDmaCount;
     gAudioCtx.sampleDmaListSize1 = gAudioCtx.sampleDmaCount;

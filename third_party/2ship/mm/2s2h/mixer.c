@@ -17,9 +17,21 @@
 #define ROUND_DOWN_16(v) ((v) & ~0xf)
 
 //#define DMEM_BUF_SIZE (0x1000 - 0x0330 - 0x10 - 0x40)
+#ifdef __3DS__
+// 3DS: endereços DMEM são u16 e nenhuma operação confere limites. Vozes com
+// pitch alto levam dmemUncompressedAddrOffset além dos 0xC80 originais e o
+// estouro caía em cima de gAudioCtx (confirmado com watchpoint). Cobrindo todo
+// o espaço u16 + folga para o maior nbytes, nenhum endereço sai do buffer;
+// endereços válidos se comportam igual. ponytail: ~72 KB de RAM, sem checagem
+// por operação.
+#define DMEM_BUF_SIZE (0x10000 + 0x2000)
+#define BUF_U8(a) (rspa.buf.as_u8 + (uint16_t)(a))
+#define BUF_S16(a) (rspa.buf.as_s16 + (uint16_t)(a) / sizeof(int16_t))
+#else
 #define DMEM_BUF_SIZE 0xC80
 #define BUF_U8(a) (rspa.buf.as_u8 + ((a)-0x0330))
 #define BUF_S16(a) (rspa.buf.as_s16 + ((a)-0x0330) / sizeof(int16_t))
+#endif
 
 static struct {
     uint16_t in;
