@@ -631,6 +631,10 @@ if(N3DS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/shipwright/soh/src")
     soh3ds_add_pc_free_artifacts(soh_3ds_gpucmd)
 endif()
 
+if(N3DS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/2ship/mm/src")
+    include(cmake/MM3DS.cmake)
+endif()
+
 
 # ============================================================================
 # MK64-3DS renderer (vendored)

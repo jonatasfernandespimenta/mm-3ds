@@ -16,7 +16,8 @@ size_t SysUcode_GetUCodeBootSize(void) {
     return (uintptr_t)rspbootTextEnd - (uintptr_t)rspbootTextStart;
 }
 
-UcodeHandlers SysUcode_GetUCode(void) {
+// 3DS: arm-none-eabi usa enums curtos; retorna u32 como o header declara
+u32 SysUcode_GetUCode(void) {
     return initialgspUcodeText;
 }
 

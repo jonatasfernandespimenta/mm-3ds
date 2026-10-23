@@ -146,7 +146,7 @@ void ResourceMgr_ClearSkeletons();
 s32* ResourceMgr_LoadCSByName(const char* path);
 int ResourceMgr_OTRSigCheck(char* imgData);
 uint64_t osGetTime(void);
-uint32_t osGetCount(void);
+u32 osGetCount(void); // 3DS: u32 == unsigned int, uint32_t == unsigned long
 uint64_t GetFrequency();
 uint32_t OTRGetCurrentWidth(void);
 uint32_t OTRGetCurrentHeight(void);
