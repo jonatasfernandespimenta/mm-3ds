@@ -143,17 +143,33 @@ static bool VerifyArchiveVersion(ArchiveVersion version);
 std::string portArchivePath = "";
 static bool shipArchiveVersionMatch = false;
 
+#ifdef __3DS__
+// MM 3DS: marcas de boot no stderr (svcOutputDebugString -> log do Azahar).
+#include <ship/utils/logging_3ds.h>
+extern "C" void Soh3dsBootStatus(const char* msg) __attribute__((weak));
+extern "C" void Soh3dsApplyLoggingSettings(void) __attribute__((weak));
+#define MM3DS_TRACE(...) (Soh3dsBootStatus != nullptr ? (void)fprintf(stderr, "mm-3ds: " __VA_ARGS__), (void)fputc('\n', stderr) : (void)0)
+#else
+#define MM3DS_TRACE(...) ((void)0)
+#endif
+
 OTRGlobals::OTRGlobals() {
     context = Ship::Context::CreateUninitializedInstance("2 Ship 2 Harkinian", appShortName, "2ship2harkinian.json");
 
     portArchivePath = Ship::Context::LocateFileAcrossAppDirs("2ship.o2r");
+    MM3DS_TRACE("ctor: 2ship.o2r -> \"%s\" exists=%d", portArchivePath.c_str(), (int)std::filesystem::exists(portArchivePath));
     ArchiveVersion portArchiveVersion = DetectArchiveVersion("2ship.o2r", true);
     shipArchiveVersionMatch = portArchiveVersion.major == gBuildVersionMajor &&
                               portArchiveVersion.minor == gBuildVersionMinor &&
                               portArchiveVersion.patch == gBuildVersionPatch;
+    MM3DS_TRACE("ctor: 2ship.o2r version %d.%d.%d match=%d", portArchiveVersion.major, portArchiveVersion.minor, portArchiveVersion.patch, (int)shipArchiveVersionMatch);
 
     context->InitConfiguration();
     context->InitConsoleVariables();
+#ifdef __3DS__
+    if (Soh3dsApplyLoggingSettings) Soh3dsApplyLoggingSettings();
+#endif
+    MM3DS_TRACE("ctor: config ok");
 
     auto controlDeck = std::make_shared<LUS::ControlDeck>(std::vector<CONTROLLERBUTTONS_T>({
         BTN_CUSTOM_MODIFIER1,
@@ -168,8 +184,11 @@ OTRGlobals::OTRGlobals() {
         BTN_CUSTOM_OCARINA_PITCH_DOWN,
     }));
     context->InitControlDeck(controlDeck);
+    MM3DS_TRACE("ctor: InitControlDeck ok");
     context->InitResourceManager({ portArchivePath }, {}, 3, true);
+    MM3DS_TRACE("ctor: InitResourceManager ok");
     context->InitConsole();
+    MM3DS_TRACE("ctor: InitConsole ok");
 
     auto benInputEditorWindow = std::make_shared<BenInputEditorWindow>("gWindows.BenInputEditor", "2S2H Input Editor");
     benFast3dWindow =
@@ -197,6 +216,7 @@ OTRGlobals::OTRGlobals() {
     previousImGuiScaleIndex = -1;
     previousImGuiScale = defaultImGuiScale;
     ScaleImGui();
+    MM3DS_TRACE("ctor: done");
 }
 
 typedef enum ExtractSteps {
@@ -622,6 +642,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
 
 void OTRGlobals::Initialize() {
     std::string mmPath = Ship::Context::LocateFileAcrossAppDirs("mm.o2r", appShortName);
+    MM3DS_TRACE("Initialize: mm.o2r -> \"%s\" exists=%d", mmPath.c_str(), (int)std::filesystem::exists(mmPath));
     if (std::filesystem::exists(mmPath)) {
         context->GetResourceManager()->GetArchiveManager()->AddArchive(mmPath);
     }
@@ -734,6 +755,8 @@ void OTRGlobals::Initialize() {
     // gRandomizer = std::make_shared<Randomizer>();
 
     auto versions = context->GetResourceManager()->GetArchiveManager()->GetGameVersions();
+    MM3DS_TRACE("Initialize: %u game versions", (unsigned)versions.size());
+    for (uint32_t v : versions) MM3DS_TRACE("Initialize: version 0x%08lX", (unsigned long)v);
     for (uint32_t version : versions) {
         if (!validHashes.contains(version)) {
 #if defined(__SWITCH__)
@@ -745,6 +768,7 @@ void OTRGlobals::Initialize() {
                                      "Attempted to load an invalid O2R file. Try regenerating.", nullptr);
             SPDLOG_ERROR("Invalid O2R File!");
 #endif
+            MM3DS_TRACE("Initialize: versao 0x%08lX invalida -> exit(1)", (unsigned long)version);
             exit(1);
         }
     }
@@ -975,10 +999,14 @@ bool VerifyArchiveVersion(ArchiveVersion version) {
 }
 
 extern "C" void InitOTR(int argc, char* argv[]) {
+    MM3DS_TRACE("InitOTR: start");
     OTRGlobals::Instance = new OTRGlobals();
+    MM3DS_TRACE("InitOTR: RunExtract");
     OTRGlobals::Instance->RunExtract(argc, argv);
 
+    MM3DS_TRACE("InitOTR: Initialize");
     OTRGlobals::Instance->Initialize();
+    MM3DS_TRACE("InitOTR: Initialize ok");
 
     std::shared_ptr<Ship::Config> conf = OTRGlobals::Instance->context->GetConfig();
     conf->RegisterVersionUpdater(std::make_shared<Ben::ConfigVersion1Updater>());
