@@ -272,6 +272,16 @@ namespace BenGui {
 extern std::shared_ptr<BenGui::BenMenu> mBenMenu;
 }
 
+#ifdef __3DS__
+// 3DS: sem extrator no console. mm.o2r/2ship.o2r vêm prontos do PC; a tela de
+// src/setup/mm_prebuilt_3ds.cpp espera o usuário copiar os arquivos.
+extern "C" bool Soh3dsEnsureGameData();
+void OTRGlobals::RunExtract(int argc, char* argv[]) {
+    if (!Soh3dsEnsureGameData()) {
+        exit(0);
+    }
+}
+#else
 void OTRGlobals::RunExtract(int argc, char* argv[]) {
     bool extractDone = false;
     ExtractSteps extractStep = ES_PORT_ARCHIVE;
@@ -608,6 +618,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
     Ship::WiiU::Init(appShortName);
 #endif
 }
+#endif
 
 void OTRGlobals::Initialize() {
     std::string mmPath = Ship::Context::LocateFileAcrossAppDirs("mm.o2r", appShortName);
@@ -952,7 +963,11 @@ ArchiveVersion DetectArchiveVersion(std::string fileName, bool isO2rType) {
 }
 
 extern "C" void Messagebox_ShowErrorBox(char* title, char* body) {
+#ifdef __3DS__
+    SPDLOG_ERROR("{}: {}", title, body);
+#else
     Extractor::ShowErrorBox(title, body);
+#endif
 }
 
 bool VerifyArchiveVersion(ArchiveVersion version) {

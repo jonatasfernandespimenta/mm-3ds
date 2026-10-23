@@ -107,8 +107,6 @@ add_executable(mm_3ds tests/soh_3ds_main.cpp
     src/compat3ds/logging_3ds.cpp
     src/compat3ds/sleep_3ds.cpp
     src/compat3ds/excluded_stubs.cpp
-    src/compat3ds/network_stubs.cpp
-    src/compat3ds/compact_zip.cpp
     src/setup/mm_prebuilt_3ds.cpp)
 target_compile_definitions(mm_3ds PRIVATE SOH3DS_DATA_DIR="sdmc:/3ds/2ship")
 target_include_directories(mm_3ds PRIVATE
