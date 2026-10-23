@@ -102,8 +102,32 @@ static inline int32_t clamp32(int64_t v) {
     return (int32_t)v;
 }
 
+#ifdef __3DS__
+// 3DS: nbytes negativo (int) ou addr+nbytes além do buffer viravam memset/
+// memmove gigantes que zeravam globais vizinhas (runFrameContext, confirmado
+// com watchpoint). Limita ao que cabe no buffer DMEM; 0 se negativo.
+static inline int dmem_clamp(uint32_t addr, int nbytes) {
+    if (nbytes <= 0) {
+        return 0;
+    }
+    if (addr + (uint32_t)nbytes > DMEM_BUF_SIZE) {
+        static int sReported;
+        if (!sReported) {
+            sReported = 1;
+            fprintf(stderr, "mm-3ds mixer: DMEM clamp addr=0x%lx nbytes=%d\n", (unsigned long)addr, nbytes);
+        }
+        return (int)(DMEM_BUF_SIZE - addr);
+    }
+    return nbytes;
+}
+#define DMEM_CLAMP(addr, n) dmem_clamp((uint16_t)(addr), (n))
+#else
+#define DMEM_CLAMP(addr, n) (n)
+#endif
+
 void aClearBufferImpl(uint16_t addr, int nbytes) {
     nbytes = ROUND_UP_16(nbytes);
+    nbytes = DMEM_CLAMP(addr, nbytes);
     memset(BUF_U8(addr), 0, nbytes);
 }
 
@@ -113,7 +137,7 @@ void aLoadBufferImpl(const void* source_addr, uint16_t dest_addr, uint16_t nbyte
         BUF_U8(dest_addr)[i] = ((const unsigned char*)source_addr)[i];
     }
 #else
-    memcpy(BUF_U8(dest_addr), source_addr, ROUND_DOWN_16(nbytes));
+    memcpy(BUF_U8(dest_addr), source_addr, DMEM_CLAMP(dest_addr, ROUND_DOWN_16(nbytes)));
 #endif
 }
 
@@ -186,6 +210,7 @@ void aInterleaveImpl(uint16_t dest, uint16_t left, uint16_t right, uint16_t c) {
 
 void aDMEMMoveImpl(uint16_t in_addr, uint16_t out_addr, int nbytes) {
     nbytes = ROUND_UP_16(nbytes);
+    nbytes = DMEM_CLAMP(out_addr, DMEM_CLAMP(in_addr, nbytes));
     memmove(BUF_U8(out_addr), BUF_U8(in_addr), nbytes);
 }
 

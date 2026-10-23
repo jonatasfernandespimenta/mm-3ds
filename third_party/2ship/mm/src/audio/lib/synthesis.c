@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "global.h"
 #include <libultraship/bridge/resourcebridge.h>
 #include "2s2h/mixer.h"
@@ -1320,6 +1321,21 @@ Acmd* AudioSynth_ProcessSample(s32 noteIndex, NoteSampleState* sampleState, Note
             skip:
                 // Update what to do with the samples next
                 if (sampleFinished) {
+#ifdef __3DS__
+                    if (numSamplesToLoadAdj - numSamplesProcessed < 0) {
+                        static int sReported;
+                        if (sReported++ < 4) {
+                            fprintf(stderr,
+                                    "mm-3ds synth: clear negativo note=%d load=%lu adj=%ld proc=%ld pos=%lu codec=%u "
+                                    "size=%lu loop=%lu..%lu count=%lu freq=%u\n",
+                                    (int)noteIndex, (unsigned long)numSamplesToLoad, (long)numSamplesToLoadAdj,
+                                    (long)numSamplesProcessed, (unsigned long)synthState->samplePosInt,
+                                    (unsigned)sample->codec, (unsigned long)sample->size,
+                                    (unsigned long)loopInfo->start, (unsigned long)loopInfo->loopEnd,
+                                    (unsigned long)loopInfo->count, (unsigned)frequencyFixedPoint);
+                        }
+                    } else
+#endif
                     if ((numSamplesToLoadAdj - numSamplesProcessed) != 0) {
                         AudioSynth_ClearBuffer(cmd++, DMEM_UNCOMPRESSED_NOTE + dmemUncompressedAddrOffset1,
                                                (numSamplesToLoadAdj - numSamplesProcessed) * SAMPLE_SIZE);
