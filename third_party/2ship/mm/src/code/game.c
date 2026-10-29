@@ -1,4 +1,5 @@
 #include "global.h"
+#include "2s2h/Enhancements/DualScreen3DS/BottomScreen3DS.h"
 #include "audiomgr.h"
 #include "idle.h"
 #include "sys_cfb.h"
@@ -146,6 +147,9 @@ void GameState_DrawEnd(GraphicsContext* gfxCtx) {
 
 void GameState_GetInput(GameState* gameState) {
     PadMgr_GetInput(gameState->input, true);
+#ifdef __3DS__
+    Mm3dsBottomScreen_InjectInput(&gameState->input[0]);
+#endif
 }
 
 void GameState_Update(GameState* gameState) {

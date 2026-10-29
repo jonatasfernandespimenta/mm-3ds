@@ -1,6 +1,7 @@
 #include "z64.h"
 #include "regs.h"
 #include "functions.h"
+#include "2s2h/Enhancements/DualScreen3DS/BottomScreen3DS.h"
 #include "z64vismono.h"
 #include "z64visfbuf.h"
 #include <libultraship/bridge/consolevariablebridge.h>
@@ -1146,6 +1147,9 @@ void Play_PostWorldDraw(PlayState* this) {
     }
 
     if (gSaveContext.gameMode == GAMEMODE_NORMAL) {
+#ifdef __3DS__
+        Mm3dsBottomScreen_Draw(this);
+#endif
         Interface_Draw(this);
     }
 
