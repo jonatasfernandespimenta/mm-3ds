@@ -44,3 +44,6 @@ __pycache__/
 # Nested repository metadata; dependencies are stored as source snapshots
 .git
 .gitmodules
+
+# Arte do HOME Menu do MM (derivada da arte da Nintendo): só local
+platform/3ds/cia/mm/

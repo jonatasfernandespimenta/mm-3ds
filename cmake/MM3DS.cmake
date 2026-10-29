@@ -155,12 +155,23 @@ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf" CONTENT "${_mm_rsf}
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs/README.txt"
     "Copie mm.o2r e 2ship.o2r para /3ds/2ship no cartao SD.\n")
+# Ícone/banner do HOME Menu próprios do MM (platform/3ds/cia/mm); sem eles,
+# os do soh-3ds. O banner sai do bannertool (makebanner -i banner.png -a banner.wav).
+set(_mm_cia_dir "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia")
+set(MM_CIA_ICON "${_mm_cia_dir}/icon.icn")
+set(MM_CIA_BANNER "${_mm_cia_dir}/banner.bnr")
+if(EXISTS "${_mm_cia_dir}/mm/icon.icn")
+    set(MM_CIA_ICON "${_mm_cia_dir}/mm/icon.icn")
+endif()
+if(EXISTS "${_mm_cia_dir}/mm/banner.bnr")
+    set(MM_CIA_BANNER "${_mm_cia_dir}/mm/banner.bnr")
+endif()
 add_custom_command(TARGET mm_3ds POST_BUILD
     COMMAND "${DEVKITPRO}/tools/bin/makerom" -f cia
         -o "${CMAKE_CURRENT_BINARY_DIR}/mm_3ds.cia" -elf "$<TARGET_FILE:mm_3ds>"
         -rsf "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf"
-        -icon "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia/icon.icn"
-        -banner "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia/banner.bnr"
+        -icon "${MM_CIA_ICON}"
+        -banner "${MM_CIA_BANNER}"
         "-DROMFS_ROOT=${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs" -target t -exefslogo
     COMMENT "makerom -> mm_3ds.cia"
     VERBATIM)

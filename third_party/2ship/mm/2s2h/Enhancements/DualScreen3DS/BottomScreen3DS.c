@@ -774,8 +774,8 @@ static Gfx* Bs_DrawBar(Gfx* gfx) {
     gfx = Bs_TextState(gfx);
     gfx = Bs_Text(gfx, "<", 10, BAR_Y + 7, 255, 255, 255);
     gfx = Bs_Text(gfx, ">", 306, BAR_Y + 7, 255, 255, 255);
-    gfx = Bs_Text(gfx, "Pag", 3, BAR_Y + 23, 200, 196, 170);
-    gfx = Bs_Text(gfx, "Pag", 294, BAR_Y + 23, 200, 196, 170);
+    gfx = Bs_Text(gfx, "Page", 2, BAR_Y + 23, 200, 196, 170);
+    gfx = Bs_Text(gfx, "Page", 293, BAR_Y + 23, 200, 196, 170);
     for (int t = 0; t < TGT_COUNT; t++) {
         const char* label = sTargetLabel[t];
         int c = TGT_IS_C(t);
@@ -1067,7 +1067,7 @@ static Gfx* Bs_DrawDungeonMap(Gfx* gfx) {
 
 // Página extra (não existe no pause): painel próprio com os 2 slots.
 static Gfx* Bs_DrawSavePage(Gfx* gfx) {
-    static const char* sDays[] = { "Dia 0", "Dia 1", "Dia 2", "Dia 3", "Dia 4" };
+    static const char* sDays[] = { "Day 0", "Day 1", "Day 2", "Day 3", "Day 4" };
     if (!sQsInfoLoaded) {
         Qs_RefreshInfo();
     }
@@ -1086,7 +1086,7 @@ static Gfx* Bs_DrawSavePage(Gfx* gfx) {
                       hot ? 170 : usable ? 80 : 50, hot ? 40 : usable ? 130 : 50, 255);
     }
     gfx = Bs_TextState(gfx);
-    gfx = Bs_Text(gfx, "SAVE RAPIDO", 160 - Bs_TextWidth("SAVE RAPIDO") / 2, 14, 255, 236, 160);
+    gfx = Bs_Text(gfx, "QUICK SAVE", 160 - Bs_TextWidth("QUICK SAVE") / 2, 14, 255, 236, 160);
     for (int i = 0; i < 2; i++) {
         int y = 40 + i * 76;
         char info[24];
@@ -1096,11 +1096,11 @@ static Gfx* Bs_DrawSavePage(Gfx* gfx) {
             int day = sQsInfo[i].day >= 0 && sQsInfo[i].day <= 4 ? sQsInfo[i].day : 0;
             snprintf(info, sizeof(info), "%s %02d:%02d", sDays[day], minutes / 60, minutes % 60);
         } else {
-            snprintf(info, sizeof(info), "vazio");
+            snprintf(info, sizeof(info), "Empty");
         }
         gfx = Bs_Text(gfx, info, PAGE_X + 26, y + 30, 200, 200, 180);
-        const char* save = sUi.confirm == i * 2 ? "Confirmar?" : "Salvar";
-        const char* load = sUi.confirm == i * 2 + 1 ? "Confirmar?" : "Carregar";
+        const char* save = sUi.confirm == i * 2 ? "Confirm?" : "Save";
+        const char* load = sUi.confirm == i * 2 + 1 ? "Confirm?" : "Load";
         gfx = Bs_Text(gfx, save, PAGE_X + 177 - Bs_TextWidth(save) / 2, y + 28, 255, 255, 255);
         gfx = Bs_Text(gfx, load, PAGE_X + 243 - Bs_TextWidth(load) / 2, y + 28, 255, 255, 255);
     }
