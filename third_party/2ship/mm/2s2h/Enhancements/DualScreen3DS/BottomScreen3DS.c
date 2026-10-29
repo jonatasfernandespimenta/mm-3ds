@@ -184,6 +184,9 @@ static struct {
     u16 time;
 } sQsInfo[2];
 static int sQsInfoLoaded;
+// Resultado do último salvar/carregar, mostrado na página (antes só havia o
+// som de erro e parecia que "nada acontecia").
+static const char* sQsStatus = "";
 
 static void Qs_Path(char* out, size_t size, int slot) {
     snprintf(out, size, "quick_f%d_%d.bin", (int)gSaveContext.fileNum, slot + 1);
@@ -219,6 +222,9 @@ static int Qs_Save(PlayState* play, int slot) {
     Player* player = GET_PLAYER(play);
     char path[32];
     if (!Qs_CanUseNow(play) || player == NULL || !SavingEnhancements_CanSave()) {
+        // Mesmas regras do save do pause do 2S2H: nada antes de Clock Town,
+        // em cutscene, diálogo, na Lua ou sem arquivo de save.
+        sQsStatus = "Can't save here";
         return 0;
     }
     Play_SaveCycleSceneFlags(play);
@@ -227,10 +233,12 @@ static int Qs_Save(PlayState* play, int slot) {
     Qs_Path(path, sizeof(path), slot);
     FILE* f = fopen(path, "wb");
     if (f == NULL) {
+        sQsStatus = "Write failed";
         return 0;
     }
     int ok = fwrite(&hdr, sizeof(hdr), 1, f) == 1 && fwrite(&gSaveContext, QS_PREFIX, 1, f) == 1;
     ok = fclose(f) == 0 && ok;
+    sQsStatus = ok ? "Saved!" : "Write failed";
     fprintf(stderr, "mm-3ds quicksave: salvar slot %d -> %s\n", slot + 1, ok ? "ok" : "falhou");
     Qs_RefreshInfo();
     return ok;
@@ -241,6 +249,7 @@ static int Qs_Load(PlayState* play, int slot) {
     QuickSaveHeader hdr;
     char path[32];
     if (!Qs_CanUseNow(play)) {
+        sQsStatus = "Can't load now";
         fprintf(stderr, "mm-3ds quicksave: carregar recusado (pause=%d msg=%d cs=%d trans=%d/%d file=%d)\n",
                 play->pauseCtx.state, play->msgCtx.msgMode, Play_InCsMode(play), play->transitionTrigger,
                 play->transitionMode, (int)gSaveContext.fileNum);
@@ -256,8 +265,10 @@ static int Qs_Load(PlayState* play, int slot) {
     fclose(f);
     fprintf(stderr, "mm-3ds quicksave: carregar slot %d -> %s\n", slot + 1, ok ? "ok" : "invalido");
     if (!ok) {
+        sQsStatus = "Save file invalid";
         return 0;
     }
+    sQsStatus = "Loaded!";
     memcpy(&gSaveContext, sBuf, QS_PREFIX);
     // Reaparece no ponto salvo pelo caminho do void out (func_80169EFC).
     Play_SetRespawnData(play, RESPAWN_MODE_DOWN, hdr.entrance, hdr.room, PLAYER_PARAMS(0xFF, PLAYER_START_MODE_B),
@@ -301,6 +312,7 @@ static void Qs_Tap(PlayState* play, int x, int y) {
     }
     if (sUi.confirm != button) {
         sUi.confirm = button; // 1º toque: pede confirmação
+        sQsStatus = "";
         Audio_PlaySfx(NA_SE_SY_CURSOR);
         return;
     }
@@ -413,6 +425,7 @@ static void Bs_SetPage(int page) {
     Bs_StopSong();
     sUi.questSong = -1;
     if (sUi.page == PAGE_SAVE) {
+        sQsStatus = "";
         Qs_RefreshInfo();
     }
     Audio_PlaySfx(NA_SE_SY_WIN_SCROLL_LEFT);
@@ -1103,6 +1116,9 @@ static Gfx* Bs_DrawSavePage(Gfx* gfx) {
         const char* load = sUi.confirm == i * 2 + 1 ? "Confirm?" : "Load";
         gfx = Bs_Text(gfx, save, PAGE_X + 177 - Bs_TextWidth(save) / 2, y + 28, 255, 255, 255);
         gfx = Bs_Text(gfx, load, PAGE_X + 243 - Bs_TextWidth(load) / 2, y + 28, 255, 255, 255);
+    }
+    if (sQsStatus[0] != '\0') {
+        gfx = Bs_Text(gfx, sQsStatus, 160 - Bs_TextWidth(sQsStatus) / 2, 182, 255, 236, 160);
     }
     return gfx;
 }
