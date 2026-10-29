@@ -4564,7 +4564,25 @@ bool gfx_dl_otr_hash_handler_custom(F3DGfx** cmd0) {
 
         uint64_t hash = ((uint64_t)(*cmd0)->words.w0 << 32) + (*cmd0)->words.w1;
 
-        F3DGfx* gfx = (F3DGfx*)Ship::Context::GetRawInstance()->GetResourceManager()->GetResourceRawPointer(hash);
+        // MM-3DS: mesmo memo por hash das texturas (mTextureByHash; chaves são
+        // CRC64 de path, sem colisão com texturas). Uma sala de Clock Town tem
+        // ~430 G_DL_OTR_HASH por frame, cada um HashToString + cópia de string +
+        // mutex na resolução completa. weak_ptr: eviction continua liberando.
+        Interpreter* intp = sInterpreterRaw;
+        F3DGfx* gfx = nullptr;
+        auto memo = intp->mTextureByHash.find(hash);
+        if (memo != intp->mTextureByHash.end()) {
+            if (auto resource = memo->second.lock()) {
+                gfx = (F3DGfx*)resource->GetRawPointer();
+            }
+        }
+        if (gfx == nullptr) {
+            auto resource = Ship::Context::GetRawInstance()->GetResourceManager()->LoadResource(hash);
+            if (resource != nullptr) {
+                intp->mTextureByHash[hash] = resource;
+                gfx = (F3DGfx*)resource->GetRawPointer();
+            }
+        }
 
         if (gfx != 0) {
             g_exec_stack.call(cmd, gfx);
@@ -4624,7 +4642,25 @@ bool gfx_branch_z_otr_handler_f3dex2(F3DGfx** cmd0) {
         (gfx->mRsp->extra_geometry_mode & G_EX_ALWAYS_EXECUTE_BRANCH) != 0) {
         uint64_t hash = ((uint64_t)(*cmd0)->words.w0 << 32) + (*cmd0)->words.w1;
 
-        F3DGfx* gfx = (F3DGfx*)Ship::Context::GetRawInstance()->GetResourceManager()->GetResourceRawPointer(hash);
+        // MM-3DS: mesmo memo por hash das texturas (mTextureByHash; chaves são
+        // CRC64 de path, sem colisão com texturas). Uma sala de Clock Town tem
+        // ~430 G_DL_OTR_HASH por frame, cada um HashToString + cópia de string +
+        // mutex na resolução completa. weak_ptr: eviction continua liberando.
+        Interpreter* intp = sInterpreterRaw;
+        F3DGfx* gfx = nullptr;
+        auto memo = intp->mTextureByHash.find(hash);
+        if (memo != intp->mTextureByHash.end()) {
+            if (auto resource = memo->second.lock()) {
+                gfx = (F3DGfx*)resource->GetRawPointer();
+            }
+        }
+        if (gfx == nullptr) {
+            auto resource = Ship::Context::GetRawInstance()->GetResourceManager()->LoadResource(hash);
+            if (resource != nullptr) {
+                intp->mTextureByHash[hash] = resource;
+                gfx = (F3DGfx*)resource->GetRawPointer();
+            }
+        }
 
         if (gfx != 0) {
             (*cmd0) = gfx;

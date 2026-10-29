@@ -3313,9 +3313,9 @@ GfxRenderingAPICitro3D::GetPixelDepth(int fbId, const std::set<std::pair<float, 
                mImpl->framebuffers[fbId] && mImpl->framebuffers[fbId]->initialized) {
         snapshot = &mImpl->framebuffers[fbId]->depthSnapshot;
     }
-    if (snapshot) snapshot->requested = true;
     std::unordered_map<std::pair<float, float>, uint16_t, hash_pair_ff> result;
     for (const auto& coordinate : coordinates) {
+        if (snapshot) snapshot->Want(coordinate.first, coordinate.second);
         result.emplace(coordinate, snapshot ? snapshot->Sample(coordinate.first, coordinate.second)
                                             : DepthSnapshot3DS::Far);
     }

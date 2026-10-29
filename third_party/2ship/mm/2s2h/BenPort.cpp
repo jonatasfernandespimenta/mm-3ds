@@ -1509,6 +1509,11 @@ extern "C" void ResourceMgr_UnloadResource(const char* resName) {
 }
 
 static void ResourceMgr_PreloadAltWhenItExists(const char* resName) {
+    // MM-3DS: chamado por limb/DL a cada frame; sem alt assets não há o que
+    // pré-carregar, então nem monta as strings abaixo.
+    if (!ResourceMgr_IsAltAssetsEnabled()) {
+        return;
+    }
     std::string path = resName;
     if (path.starts_with("__OTR__")) {
         path = path.substr(7);
@@ -1552,7 +1557,14 @@ extern "C" void ResourceMgr_LoadFile(const char* resName) {
 }
 
 std::shared_ptr<Ship::IResource> GetResourceByName(const char* path) {
-    return Ship::Context::GetRawInstance()->GetResourceManager()->LoadResource(path);
+    auto resourceManager = Ship::Context::GetRawInstance()->GetResourceManager();
+    // MM-3DS: probe do cache sem alocar (string_view; trata __OTR__ e alt
+    // assets). O caminho completo criava 2 strings + ResourceIdentifier por
+    // chamada, e limbs/segmentos/animações passam aqui todo frame.
+    if (auto cached = resourceManager->GetCachedResource(std::string_view(path)); cached && !cached->IsDirty()) {
+        return cached;
+    }
+    return resourceManager->LoadResource(path);
 }
 
 extern "C" char* ResourceMgr_LoadFileFromDisk(const char* filePath) {

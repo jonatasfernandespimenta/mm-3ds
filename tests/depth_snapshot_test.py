@@ -49,7 +49,7 @@ int main() {
     compact.requested = true;
     beginTrack();
     expect(compact.Capture(source.data(), 512, 256, 320, 240, false), "capture content");
-    expect(allocated == 320 * 240 * sizeof(uint32_t) && allocations == 1, "allocate only 300 KiB content tiles");
+    expect(allocated == 320 * 240 * sizeof(uint32_t) + 40 * 30 && allocations == 2, "allocate only 300 KiB content tiles + tile validity");
     beginTrack();
     expect(compact.Capture(source.data(), 512, 256, 320, 240, false), "repeat capture");
     expect(allocations == 0, "reuse repeated capture allocation");
@@ -89,7 +89,7 @@ int main() {
     expect(compact.Sample(200,120)==saved, "source changes do not change captured frame");
     expect(compact.requested, "Capture preserves request");
     beginTrack(); compact.Reset();
-    expect(freed==1 && allocations==0, "Reset releases retained memory"); track=false;
+    expect(freed==2 && allocations==0, "Reset releases retained memory"); track=false;
     expect(!compact.requested && compact.Sample(200,120)==DepthSnapshot3DS::Far, "Reset invalidates and clears request");
     const Shape invalid[]={{0,8,1,1,false},{8,0,1,1,false},{1032,8,1,1,false},{8,1032,1,1,true},
         {9,8,1,1,false},{8,9,1,1,true},{8,8,0,1,false},{8,8,1,0,true},
@@ -108,16 +108,32 @@ int main() {
     expect(compact.Sample(200,120)==DepthSnapshot3DS::Far, "failed allocation invalidates old snapshot");
     beginTrack();
     expect(compact.Capture(source.data(),512,256,320,240,false), "recover after allocation failure");
-    expect(allocated==307200 && allocations==1, "growth allocates exact tile byte count");
+    expect(allocated==307200 + 1200 && allocations==2, "growth allocates exact tile byte count");
     track=false;
     // Increasing content should not trigger vector geometric over-allocation.
     beginTrack();
     expect(compact.Capture(source.data(),512,256,400,240,false), "grow to widescreen content");
-    expect(allocated==384000 && allocations==1, "growth has no excess capacity"); track=false;
+    expect(allocated==384000 + 1500 && allocations==2, "growth has no excess capacity"); track=false;
     expect(compact.Sample(0,0)==DepthSnapshot3DS::Far, "zero D24 is far");
     std::fill(source.begin(),source.end(),0xA5FFFFFFU);
     expect(compact.Capture(source.data(),512,256,320,240,false), "stencil fixture capture");
     expect(compact.Sample(399,239)==0, "D24 inversion ignores stencil byte");
+    {
+        // Captura parcial: depois de uma completa, só os tiles pedidos por Want()
+        // são copiados; o ponto pedido bate com o oracle e longe dele vira Far.
+        for (size_t i = 0; i < source.size(); ++i) source[i] = static_cast<uint32_t>(i * 2654435761U);
+        DepthSnapshot3DS partial; DepthSnapshotBefore full;
+        expect(partial.Capture(source.data(),512,256,400,240,false), "partial: first capture is full");
+        partial.Want(200,120); partial.Want(-5,-5); // fora da tela é ignorado
+        for (size_t i = 0; i < source.size(); ++i) source[i] ^= 0x00123456U; // frame seguinte
+        expect(partial.Capture(source.data(),512,256,400,240,false), "partial capture");
+        expect(full.Capture(source.data(),512,256,400,240,false), "partial oracle");
+        expect(partial.Sample(200,120)==full.Sample(200,120), "partial: wanted point equals oracle");
+        expect(partial.Sample(203,117)==full.Sample(203,117), "partial: neighbour tile equals oracle");
+        expect(partial.Sample(20,20)==DepthSnapshot3DS::Far, "partial: unwanted tile is far");
+        expect(partial.Capture(source.data(),512,256,400,240,false), "capture with no queries");
+        expect(partial.Sample(200,120)==DepthSnapshot3DS::Far, "partial: no queries copies nothing");
+    }
     std::printf("depth snapshot: %llu oracle comparisons; exact tile allocations, reuse, growth, failure, reset pass\n",
                 static_cast<unsigned long long>(comparisons));
 }

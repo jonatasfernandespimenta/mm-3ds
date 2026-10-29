@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
+#include <algorithm>
 #include <vector>
 
 #if defined(__3DS__) && defined(__arm__)
@@ -21,14 +22,44 @@ class DepthSnapshot3DS {
         requested = false;
         valid = false;
         std::vector<uint32_t>().swap(pixels);
+        std::vector<uint8_t>().swap(tileValid);
+        wanted.clear();
+    }
+
+    // MM-3DS: anota o tile 8x8 (e vizinhos) de uma consulta para a próxima
+    // captura. O jogo consulta 1-2 pontos (sol, brilhos); copiar o buffer
+    // inteiro (~375 KiB) todo frame por isso dominava o custo. Sem geometria
+    // conhecida ainda, a próxima captura é completa.
+    void Want(float x, float y) {
+        requested = true;
+        uint32_t tile;
+        if (!valid) {
+            wantAll = true;
+            return;
+        }
+        if (!TileOf(x, y, &tile)) {
+            return; // fora da tela: Sample já devolve Far
+        }
+        const int cols = static_cast<int>(capturedTileColumns);
+        const int rows = static_cast<int>(capturedTileRows);
+        const int cx = static_cast<int>(tile % capturedTileColumns), cy = static_cast<int>(tile / capturedTileColumns);
+        for (int dy = -1; dy <= 1; ++dy) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                if (cx + dx >= 0 && cx + dx < cols && cy + dy >= 0 && cy + dy < rows) {
+                    wanted.push_back(static_cast<uint32_t>((cy + dy) * cols + cx + dx));
+                }
+            }
+        }
     }
 
     bool Capture(const void* source, uint32_t width, uint32_t height,
                  uint32_t contentWidth, uint32_t contentHeight, bool rotate) {
+        const bool wasValid = valid;
         valid = false;
         if (!source || width == 0 || height == 0 || width > 1024 || height > 1024 ||
             width % 8 || height % 8 || contentWidth == 0 || contentHeight == 0 ||
             contentWidth > (rotate ? height : width) || contentHeight > (rotate ? width : height)) {
+            wanted.clear();
             return false;
         }
         const uint32_t tileColumns = ((rotate ? contentHeight : contentWidth) + 7U) / 8U;
@@ -36,6 +67,10 @@ class DepthSnapshot3DS {
         const uint32_t tileRows = height / 8U - firstTileRow;
         const size_t rowPixels = static_cast<size_t>(tileColumns) * 64U;
         const size_t pixelCount = rowPixels * tileRows;
+        const bool sameGeometry = wasValid && tileValid.size() == static_cast<size_t>(tileColumns) * tileRows &&
+                                  capturedTileColumns == tileColumns && capturedFirstTileRow == firstTileRow &&
+                                  backingHeight == height && drawWidth == contentWidth &&
+                                  drawHeight == contentHeight && rotated == rotate;
         try {
             // Reuse stable-size captures without allocating. On growth, avoid
             // vector's geometric spare capacity on a memory-limited handheld.
@@ -44,12 +79,35 @@ class DepthSnapshot3DS {
             } else {
                 pixels.resize(pixelCount);
             }
+            const size_t tileCount = static_cast<size_t>(tileColumns) * tileRows;
+            if (tileCount > tileValid.capacity()) {
+                std::vector<uint8_t>(tileCount).swap(tileValid);
+            } else {
+                tileValid.resize(tileCount);
+            }
         } catch (const std::bad_alloc&) {
             return false;
         }
         const size_t sourceRowPixels = static_cast<size_t>(width) * 8U;
         const auto* sourceBytes = static_cast<const unsigned char*>(source) +
                                   firstTileRow * sourceRowPixels * sizeof(uint32_t);
+        if (!wantAll && sameGeometry) {
+            // Só os tiles pedidos; o resto fica inválido (Sample devolve Far).
+            std::fill(tileValid.begin(), tileValid.end(), 0);
+            for (uint32_t tile : wanted) {
+                const uint32_t row = tile / tileColumns, col = tile % tileColumns;
+                std::memcpy(pixels.data() + static_cast<size_t>(tile) * 64U,
+                            sourceBytes + (row * sourceRowPixels + col * 64U) * sizeof(uint32_t),
+                            64U * sizeof(uint32_t));
+                tileValid[tile] = 1;
+            }
+            wanted.clear();
+            valid = true;
+            return true;
+        }
+        std::fill(tileValid.begin(), tileValid.end(), 1);
+        wanted.clear();
+        wantAll = false;
         if (rowPixels == sourceRowPixels) {
 #if defined(__3DS__) && defined(__arm__)
             Soh3dsCopyWordsArm11(pixels.data(), sourceBytes, static_cast<uint32_t>(pixelCount));
@@ -70,6 +128,7 @@ class DepthSnapshot3DS {
             }
         }
         capturedTileColumns = tileColumns;
+        capturedTileRows = tileRows;
         capturedFirstTileRow = firstTileRow;
         backingHeight = height;
         drawWidth = contentWidth;
@@ -80,7 +139,8 @@ class DepthSnapshot3DS {
     }
 
     uint16_t Sample(float x, float y) const {
-        if (!valid || !std::isfinite(x) || !std::isfinite(y) || x < 0 || y < 0 || x >= 400 || y >= 240) {
+        uint32_t tile;
+        if (!TileOf(x, y, &tile) || tile >= tileValid.size() || !tileValid[tile]) {
             return Far;
         }
         // Same containing-pixel convention as GL's integer glReadPixels args.
@@ -103,7 +163,26 @@ class DepthSnapshot3DS {
     }
 
   private:
+    // Índice do tile (linha capturada * colunas + coluna) que contém (x, y).
+    bool TileOf(float x, float y, uint32_t* tile) const {
+        if (!valid || !std::isfinite(x) || !std::isfinite(y) || x < 0 || y < 0 || x >= 400 || y >= 240) {
+            return false;
+        }
+        const uint32_t px = static_cast<uint32_t>(x * drawWidth / 400.f);
+        const uint32_t py = static_cast<uint32_t>(y * drawHeight / 240.f);
+        if (px >= drawWidth || py >= drawHeight) return false;
+        const uint32_t tx = rotated ? py : px;
+        const uint32_t ty = rotated ? backingHeight - drawWidth + px : backingHeight - 1 - py;
+        if (ty / 8U < capturedFirstTileRow) return false;
+        *tile = (ty / 8U - capturedFirstTileRow) * capturedTileColumns + tx / 8U;
+        return true;
+    }
+
     std::vector<uint32_t> pixels;
+    std::vector<uint8_t> tileValid;
+    std::vector<uint32_t> wanted;
+    bool wantAll = true;
+    uint32_t capturedTileRows = 0;
     uint32_t capturedTileColumns = 0, capturedFirstTileRow = 0;
     uint32_t backingHeight = 0, drawWidth = 0, drawHeight = 0;
     bool valid = false, rotated = false;
