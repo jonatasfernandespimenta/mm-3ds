@@ -80,8 +80,17 @@ extern "C" {
 #include "z64transition.h"
 #include "z64view.h"
 
+#ifdef __3DS__
+// 3DS: 32 MiB de system heap não cabem junto da LUS e do O2R (memalign voltava
+// NULL e o assert some com NDEBUG). gAudioHeapInitSizes só usa 0x37F000 do
+// audio heap. Play_Init pega toda a system heap livre para a cena.
+// ponytail: 16 MiB fixo; medir o pico se alguma cena grande ficar sem memória.
+#define AUDIO_HEAP_SIZE 0x380000
+#define SYSTEM_HEAP_SIZE (1024 * 1024 * 16)
+#else
 #define AUDIO_HEAP_SIZE 0x1380000
 #define SYSTEM_HEAP_SIZE (1024 * 1024 * 32)
+#endif
 
 typedef struct {
     /* 0x00 */ TexturePtr timg;

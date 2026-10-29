@@ -4,7 +4,7 @@
 #include <cstring>
 
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
-#include "../../third_party/shipwright/torch/lib/miniz/zip_file.hpp"
+#include "../../third_party/miniz/zip_file.hpp"
 
 namespace {
 struct Reader {

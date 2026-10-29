@@ -2,6 +2,7 @@
 #include "z64.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #if defined(__unix__) || defined(__APPLE__)
 #include <sys/mman.h>
 #endif
@@ -21,6 +22,10 @@ void Heaps_Alloc(void) {
 #else
     gAudioHeap = (u8*)memalign(0x10, AUDIO_HEAP_SIZE);
     gSystemHeap = (u8*)memalign(0x10, SYSTEM_HEAP_SIZE);
+#endif
+#ifdef __3DS__
+    fprintf(stderr, "mm-3ds heaps: audio=%p (%u) system=%p (%u)\n", (void*)gAudioHeap, (unsigned)AUDIO_HEAP_SIZE,
+            (void*)gSystemHeap, (unsigned)SYSTEM_HEAP_SIZE);
 #endif
 
     assert(gAudioHeap != NULL);

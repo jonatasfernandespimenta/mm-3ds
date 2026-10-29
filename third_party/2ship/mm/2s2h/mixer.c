@@ -22,11 +22,16 @@
 // pitch alto levam dmemUncompressedAddrOffset além dos 0xC80 originais e o
 // estouro caía em cima de gAudioCtx (confirmado com watchpoint). Cobrindo todo
 // o espaço u16 + folga para o maior nbytes, nenhum endereço sai do buffer;
-// endereços válidos se comportam igual. ponytail: ~72 KB de RAM, sem checagem
-// por operação.
-#define DMEM_BUF_SIZE (0x10000 + 0x2000)
-#define BUF_U8(a) (rspa.buf.as_u8 + (uint16_t)(a))
-#define BUF_S16(a) (rspa.buf.as_s16 + (uint16_t)(a) / sizeof(int16_t))
+// endereços válidos se comportam igual. Comprimentos são limitados a DMEM_MAX
+// só como trava (comandos de 5 KiB são normais aqui; um teto de 4 KiB cortava
+// áudio válido e estourava o som); a folga cobre o pior caso de cada comando
+// com esse limite (aInterlImpl lê 4x) e leituras logo antes do endereço
+// (aResampleImpl). ponytail: ~192 KB de RAM.
+#define DMEM_FRONT 0x40
+#define DMEM_MAX 0x8000
+#define DMEM_BUF_SIZE (DMEM_FRONT + 0x10000 + 4 * DMEM_MAX)
+#define BUF_U8(a) (rspa.buf.as_u8 + DMEM_FRONT + (uint16_t)(a))
+#define BUF_S16(a) ((int16_t*)BUF_U8((uint16_t)(a) & ~1))
 #else
 #define DMEM_BUF_SIZE 0xC80
 #define BUF_U8(a) (rspa.buf.as_u8 + ((a)-0x0330))
@@ -103,31 +108,29 @@ static inline int32_t clamp32(int64_t v) {
 }
 
 #ifdef __3DS__
-// 3DS: nbytes negativo (int) ou addr+nbytes além do buffer viravam memset/
-// memmove gigantes que zeravam globais vizinhas (runFrameContext, confirmado
-// com watchpoint). Limita ao que cabe no buffer DMEM; 0 se negativo.
-static inline int dmem_clamp(uint32_t addr, int nbytes) {
-    if (nbytes <= 0) {
+// 3DS: a engine às vezes emite comandos com comprimento absurdo (~64 KiB de
+// aClearBuffer quando a nota passa do fim do loop, ou nbytes negativo) que
+// zeravam globais vizinhas (runFrameContext, confirmado com watchpoint).
+static inline int dmem_len(int n, const char* fn) {
+    if (n <= 0) {
         return 0;
     }
-    if (addr + (uint32_t)nbytes > DMEM_BUF_SIZE) {
-        static int sReported;
-        if (!sReported) {
-            sReported = 1;
-            fprintf(stderr, "mm-3ds mixer: DMEM clamp addr=0x%lx nbytes=%d\n", (unsigned long)addr, nbytes);
+    if (n > DMEM_MAX) {
+        static unsigned sClamps;
+        if ((sClamps++ & 63) == 0) {
+            fprintf(stderr, "mm-3ds mixer: DMEM len %d -> 0x%x em %s (total %u)\n", n, DMEM_MAX, fn, sClamps);
         }
-        return (int)(DMEM_BUF_SIZE - addr);
+        return DMEM_MAX;
     }
-    return nbytes;
+    return n;
 }
-#define DMEM_CLAMP(addr, n) dmem_clamp((uint16_t)(addr), (n))
+#define DMEM_LEN(n) dmem_len((int)(n), __func__)
 #else
-#define DMEM_CLAMP(addr, n) (n)
+#define DMEM_LEN(n) (n)
 #endif
 
 void aClearBufferImpl(uint16_t addr, int nbytes) {
-    nbytes = ROUND_UP_16(nbytes);
-    nbytes = DMEM_CLAMP(addr, nbytes);
+    nbytes = DMEM_LEN(ROUND_UP_16(nbytes));
     memset(BUF_U8(addr), 0, nbytes);
 }
 
@@ -137,7 +140,7 @@ void aLoadBufferImpl(const void* source_addr, uint16_t dest_addr, uint16_t nbyte
         BUF_U8(dest_addr)[i] = ((const unsigned char*)source_addr)[i];
     }
 #else
-    memcpy(BUF_U8(dest_addr), source_addr, DMEM_CLAMP(dest_addr, ROUND_DOWN_16(nbytes)));
+    memcpy(BUF_U8(dest_addr), source_addr, DMEM_LEN(ROUND_DOWN_16(nbytes)));
 #endif
 }
 
@@ -147,6 +150,7 @@ void aLoadBufferImpl(const void* source_addr, uint16_t dest_addr, uint16_t nbyte
 void aOPUSdecImpl(void* source_addr, uint16_t dest_addr, uint16_t nbytes, struct OggOpusFile** decState, int32_t pos,
                   uint32_t size) {
     int readSamples = 0;
+    nbytes = DMEM_LEN(nbytes);
     if (*decState == NULL) {
         *decState = op_open_memory(source_addr, size, NULL);
     }
@@ -169,7 +173,7 @@ void aOPUSFree(struct OggOpusFile* opusFile) {
 }
 
 void aSaveBufferImpl(uint16_t source_addr, int16_t* dest_addr, uint16_t nbytes) {
-    memcpy(dest_addr, BUF_S16(source_addr), ROUND_DOWN_16(nbytes));
+    memcpy(dest_addr, BUF_S16(source_addr), DMEM_LEN(ROUND_DOWN_16(nbytes)));
 }
 
 void aLoadADPCMImpl(int num_entries_times_16, const int16_t* book_source_addr) {
@@ -179,11 +183,11 @@ void aLoadADPCMImpl(int num_entries_times_16, const int16_t* book_source_addr) {
 void aSetBufferImpl(uint8_t flags, uint16_t in, uint16_t out, uint16_t nbytes) {
     rspa.in = in;
     rspa.out = out;
-    rspa.nbytes = nbytes;
+    rspa.nbytes = DMEM_LEN(nbytes);
 }
 
 void aInterleaveImpl(uint16_t dest, uint16_t left, uint16_t right, uint16_t c) {
-    int count = ROUND_UP_8(c) / sizeof(int16_t) / 4;
+    int count = DMEM_LEN(ROUND_UP_8(c)) / sizeof(int16_t) / 4;
     int16_t* l = BUF_S16(left);
     int16_t* r = BUF_S16(right);
     int16_t* d = BUF_S16(dest);
@@ -209,8 +213,7 @@ void aInterleaveImpl(uint16_t dest, uint16_t left, uint16_t right, uint16_t c) {
 }
 
 void aDMEMMoveImpl(uint16_t in_addr, uint16_t out_addr, int nbytes) {
-    nbytes = ROUND_UP_16(nbytes);
-    nbytes = DMEM_CLAMP(out_addr, DMEM_CLAMP(in_addr, nbytes));
+    nbytes = DMEM_LEN(ROUND_UP_16(nbytes));
     memmove(BUF_U8(out_addr), BUF_U8(in_addr), nbytes);
 }
 
@@ -337,7 +340,7 @@ void aEnvMixerImpl(uint16_t in_addr, uint16_t n_samples, bool swap_reverb, bool 
     int16_t* wet[2] = { BUF_S16(((wet_dry_addr >> 8) & 0xFF) << 4), BUF_S16(((wet_dry_addr)&0xFF) << 4) };
     int16_t negs[4] = { neg_left ? -1 : 0, neg_right ? -1 : 0, neg_3 ? -4 : 0, neg_2 ? -2 : 0 };
     int swapped[2] = { swap_reverb ? 1 : 0, swap_reverb ? 0 : 1 };
-    int n = ROUND_UP_16(n_samples);
+    int n = DMEM_LEN(ROUND_UP_16(n_samples));
 
     uint16_t vols[2] = { rspa.vol[0], rspa.vol[1] };
     uint16_t rates[2] = { rspa.rate[0], rspa.rate[1] };
@@ -394,6 +397,7 @@ static void aMixImplRef(uint16_t count, int16_t gain, uint16_t in_addr, uint16_t
 }
 
 void aMixImpl(uint16_t count, int16_t gain, uint16_t in_addr, uint16_t out_addr) {
+    count = DMEM_LEN((int)count << 4) >> 4;
 #if defined(__SSE2__) || defined(_M_AMD64)
     aMixImplSSE2(count, gain, in_addr, out_addr);
 #elif defined(__ARM_NEON)
@@ -443,7 +447,7 @@ void aS8DecImpl(uint8_t flags, ADPCM_STATE state) {
 void aAddMixerImpl(uint16_t count, uint16_t in_addr, uint16_t out_addr) {
     int16_t* in = BUF_S16(in_addr);
     int16_t* out = BUF_S16(out_addr);
-    int nbytes = ROUND_UP_64(ROUND_DOWN_16(count));
+    int nbytes = DMEM_LEN(ROUND_UP_64(ROUND_DOWN_16(count)));
 
     do {
         *out = clamp16(*out + *in++);
@@ -488,6 +492,7 @@ void aDuplicateImpl(uint16_t count, uint16_t in_addr, uint16_t out_addr) {
     uint8_t* out = BUF_U8(out_addr);
 
     uint8_t tmp[128];
+    count = DMEM_LEN((int)count * 128) / 128;
     memcpy(tmp, in, 128);
     do {
         memcpy(out, tmp, 128);
@@ -519,7 +524,7 @@ void aResampleZohImpl(uint16_t pitch, uint16_t start_fract) {
 void aInterlImpl(uint16_t in_addr, uint16_t out_addr, uint16_t n_samples) {
     int16_t* in = BUF_S16(in_addr);
     int16_t* out = BUF_S16(out_addr);
-    int n = ROUND_UP_8(n_samples);
+    int n = DMEM_LEN(ROUND_UP_8(n_samples));
 
     do {
         *out++ = *in++;
@@ -545,7 +550,7 @@ void aInterlImpl(uint16_t in_addr, uint16_t out_addr, uint16_t n_samples) {
 
 void aFilterImpl(uint8_t flags, uint16_t count_or_buf, int16_t* state_or_filter) {
     if (flags > A_INIT) {
-        rspa.filter_count = ROUND_UP_16(count_or_buf);
+        rspa.filter_count = DMEM_LEN(ROUND_UP_16(count_or_buf));
         memcpy(rspa.filter, state_or_filter, sizeof(rspa.filter));
     } else {
         int16_t tmp[16], tmp2[8];
@@ -593,7 +598,7 @@ void aFilterImpl(uint8_t flags, uint16_t count_or_buf, int16_t* state_or_filter)
 
 void aHiLoGainImpl(uint8_t g, uint16_t count, uint16_t addr) {
     int16_t* samples = BUF_S16(addr);
-    int nbytes = ROUND_UP_32(count);
+    int nbytes = DMEM_LEN(ROUND_UP_32(count));
 
     do {
         *samples = clamp16((*samples * g) >> 4);
@@ -621,7 +626,7 @@ void aUnkCmd3Impl(uint16_t a, uint16_t b, uint16_t c) {
 }
 
 void aUnkCmd19Impl(uint8_t f, uint16_t count, uint16_t out_addr, uint16_t in_addr) {
-    int nbytes = ROUND_UP_64(count);
+    int nbytes = DMEM_LEN(ROUND_UP_64(count));
     int16_t* in = BUF_S16(in_addr + f);
     int16_t* out = BUF_S16(out_addr);
     int16_t tbl[32];

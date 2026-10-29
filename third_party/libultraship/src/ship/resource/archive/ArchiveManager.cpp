@@ -309,6 +309,10 @@ std::shared_ptr<Archive> ArchiveManager::AddArchive(std::shared_ptr<Archive> arc
     if (archive->HasGameVersion()) {
         mGameVersions.push_back(archive->GetGameVersion());
     }
+#ifndef __3DS__
+    // 3DS: materializar ~50k nomes do mm.o2r deixava ~210k fragmentos livres na
+    // heap (std::bad_alloc em Clock Town). mDirectories só serve ListDirectories,
+    // que ninguém chama no port. ponytail: indexar sob demanda se alguém precisar.
     const auto fileList = archive->ListFiles();
     for (auto& [hash, filename] : *fileList.get()) {
 
@@ -318,6 +322,7 @@ std::shared_ptr<Archive> ArchiveManager::AddArchive(std::shared_ptr<Archive> arc
             mDirectories.insert(dir);
         }
     }
+#endif
     return archive;
 }
 

@@ -49,7 +49,15 @@ void Audio::InitAudioPlayer() {
     if (mAudioPlayer && !mAudioPlayer->Init()) {
         // Failed to initialize system audio player.
         // Fallback to Null if the native system player does not work.
+#ifdef __3DS__
+        // Sem gravar no config: um ndspInit que falhou uma vez (dspfirm.cdc
+        // ausente) deixava "null" salvo e o jogo mudo para sempre.
+        mAudioBackend = AudioBackend::NUL;
+        mAudioPlayer = std::make_shared<NullAudioPlayer>(this->mAudioSettings);
+        mAudioPlayer->Init();
+#else
         SetCurrentAudioBackend(AudioBackend::NUL);
+#endif
     }
 }
 

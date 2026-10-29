@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <atomic>
 #include <chrono>
 
 #include <ship/resource/ResourceManager.h>
@@ -148,7 +149,10 @@ static bool shipArchiveVersionMatch = false;
 #include <ship/utils/logging_3ds.h>
 extern "C" void Soh3dsBootStatus(const char* msg) __attribute__((weak));
 extern "C" void Soh3dsApplyLoggingSettings(void) __attribute__((weak));
-#define MM3DS_TRACE(...) (Soh3dsBootStatus != nullptr ? (void)fprintf(stderr, "mm-3ds: " __VA_ARGS__), (void)fputc('\n', stderr) : (void)0)
+#include <malloc.h>
+// Cada marca leva ordblks/livre da heap: localiza qual etapa do boot fragmenta.
+#define MM3DS_TRACE(...) (Soh3dsBootStatus != nullptr ? (void)fprintf(stderr, "mm-3ds: " __VA_ARGS__), \
+    (void)fprintf(stderr, " [ordblks=%d fordKiB=%d]\n", mallinfo().ordblks, mallinfo().fordblks / 1024) : (void)0)
 #else
 #define MM3DS_TRACE(...) ((void)0)
 #endif
@@ -673,7 +677,12 @@ void OTRGlobals::Initialize() {
                                               CVarGetInteger("gSettings.AutoCaptureMouse", 1));
     context->GetWindow()->SetForceCursorVisibility(CVarGetInteger("gSettings.CursorVisibility", 0));
 
+    #ifdef __3DS__
+    // ~64 ms de reserva, como no SoH-3DS (produção pelo nível do buffer).
+    context->InitAudio({ .SampleRate = 32000, .SampleLength = 1024, .DesiredBuffered = 2048 });
+#else
     context->InitAudio({ .SampleRate = 32000, .SampleLength = 1024, .DesiredBuffered = 1680 });
+#endif
 
     SPDLOG_INFO("Starting 2 Ship 2 Harkinian version {} (Branch: {} | Commit: {})", (char*)gBuildVersion,
                 (char*)gGitBranch, (char*)gGitCommitHash);
@@ -781,11 +790,6 @@ extern "C" uint32_t Ship_GetInterpolationFPS() {
     return OTRGlobals::Instance->GetInterpolationFPS();
 }
 
-struct ExtensionEntry {
-    std::string path;
-    std::string ext;
-};
-
 void OTRGlobals::ScaleImGui() {
     int32_t imGuiScaleIndex = CVarGetInteger("gSettings.ImGuiScale", defaultImGuiScale);
     if (imGuiScaleIndex == previousImGuiScaleIndex) {
@@ -836,16 +840,84 @@ extern "C" void AudioPlayer_Play(const uint8_t* buf, uint32_t len);
 extern "C" int AudioPlayer_Buffered(void);
 extern "C" int AudioPlayer_GetDesiredBuffered(void);
 extern "C" void ResourceMgr_LoadDirectory(const char* resName);
-std::unordered_map<std::string, ExtensionEntry> ExtensionCache;
 
 static struct {
     std::thread thread;
     std::condition_variable cv_to_thread, cv_from_thread;
     std::mutex mutex;
-    bool running;
-    bool processing;
+    std::atomic_bool running{ false };
+    std::atomic_bool processing{ false };
 } audio;
 
+#ifdef __3DS__
+// 3DS (portado do SoH-3DS): a síntese roda no core 2 do New 3DS e produz pelo
+// nível do buffer do NDSP, uma atualização (528/544 amostras) por vez. A versão
+// de PC produzia 3 atualizações por frame do jogo, no core do jogo, e o jogo
+// esperava a síntese acabar: com ~1 frame de reserva, qualquer frame lento
+// virava buraco no som (gaps medidos no NDSP). O wake usa mutex próprio para o
+// jogo nunca esperar uma síntese em andamento.
+static std::mutex sAudioWakeMutex;
+
+static void Mm3dsAudioNotify() {
+    {
+        std::lock_guard<std::mutex> lock(sAudioWakeMutex);
+        audio.processing = true;
+    }
+    audio.cv_to_thread.notify_one();
+}
+
+static bool Mm3dsAudioWait(bool& primed) {
+    std::unique_lock<std::mutex> lock(sAudioWakeMutex);
+    auto ready = [] { return audio.processing || !audio.running; };
+    if (!primed) {
+        audio.cv_to_thread.wait(lock, ready); // engine precisa inicializar antes
+    } else {
+        audio.cv_to_thread.wait_for(lock, std::chrono::milliseconds(5), ready);
+    }
+    if (!audio.running) {
+        return false;
+    }
+    primed = true;
+    audio.processing = false;
+    return true;
+}
+
+void OTRAudio_Thread() {
+    // O sequenciador anda um passo fixo por atualização (60/s), então a média
+    // tem que ser 32000/60 = 533,33: 528, 544, 528...
+    constexpr u32 kLow = 528, kMid = 544;
+    static s16 buffer[kMid * 2];
+    int32_t debtThirds = 0;
+    bool primed = false;
+    while (Mm3dsAudioWait(primed)) {
+        while (audio.running) {
+            std::unique_lock<std::mutex> Lock(audio.mutex);
+            if (AudioPlayer_Buffered() + (int)kMid > AudioPlayer_GetDesiredBuffered()) {
+                break;
+            }
+            const u32 n = debtThirds > 0 ? kMid : kLow;
+            debtThirds += 1600 - 3 * (int32_t)n;
+            AudioMgr_CreateNextAudioBuffer(buffer, n);
+            AudioPlayer_Play((u8*)buffer, n * 2 * sizeof(int16_t));
+        }
+    }
+}
+
+// <3ds.h> conflita com os typedefs da libultra; declara só o necessário.
+extern "C" {
+typedef struct Thread_tag* Mm3dsThreadHandle;
+Mm3dsThreadHandle threadCreate(void (*entry)(void*), void* arg, size_t stackSize, int32_t prio, int32_t coreId,
+                               bool detached);
+int32_t threadJoin(Mm3dsThreadHandle thread, uint64_t timeoutNs);
+void threadFree(Mm3dsThreadHandle thread);
+int32_t APT_SetAppCpuTimeLimit(uint32_t percent);
+int32_t APT_CheckNew3DS(bool* isNew);
+}
+static Mm3dsThreadHandle sMm3dsAudioThread = nullptr;
+static void Mm3dsAudioThreadEntry(void*) {
+    OTRAudio_Thread();
+}
+#else
 void OTRAudio_Thread() {
     while (audio.running) {
         {
@@ -886,6 +958,8 @@ void OTRAudio_Thread() {
     }
 }
 
+#endif
+
 // C->C++ Bridge
 extern "C" void OTRAudio_Init() {
     // Precache all our samples, sequences, etc...
@@ -893,7 +967,35 @@ extern "C" void OTRAudio_Init() {
 
     if (!audio.running) {
         audio.running = true;
+#ifdef __3DS__
+        // Prioridade acima da main (0x30). New 3DS: core 2 dedicado; senão a
+        // fatia do core 1 que o APT conceder; por último, core 0.
+        constexpr size_t kAudioStack = 128 * 1024;
+        constexpr int32_t kAudioPrio = 0x18;
+        int core = -1;
+        bool isNew = false;
+        APT_CheckNew3DS(&isNew);
+        if (isNew && (sMm3dsAudioThread = threadCreate(Mm3dsAudioThreadEntry, nullptr, kAudioStack, kAudioPrio, 2,
+                                                        false)) != nullptr) {
+            core = 2;
+        }
+        for (uint32_t limit : { 80u, 70u, 50u, 30u }) {
+            if (sMm3dsAudioThread != nullptr || APT_SetAppCpuTimeLimit(limit) < 0) {
+                continue;
+            }
+            if ((sMm3dsAudioThread = threadCreate(Mm3dsAudioThreadEntry, nullptr, kAudioStack, kAudioPrio, 1,
+                                                  false)) != nullptr) {
+                core = 1;
+            }
+        }
+        if (sMm3dsAudioThread == nullptr) {
+            core = 0;
+            audio.thread = std::thread(OTRAudio_Thread);
+        }
+        fprintf(stderr, "mm-3ds audio: synthesis on core %d\n", core);
+#else
         audio.thread = std::thread(OTRAudio_Thread);
+#endif
     }
 }
 
@@ -912,7 +1014,17 @@ extern "C" void OTRAudio_Exit() {
     audio.cv_to_thread.notify_all();
 
     // Wait until the audio thread quit
+#ifdef __3DS__
+    if (sMm3dsAudioThread != nullptr) {
+        threadJoin(sMm3dsAudioThread, UINT64_MAX);
+        threadFree(sMm3dsAudioThread);
+        sMm3dsAudioThread = nullptr;
+    } else {
+        audio.thread.join();
+    }
+#else
     audio.thread.join();
+#endif
     for (size_t i = 0; i < gSequenceMapSize; i++) {
         free(gSequenceMap[i]);
     }
@@ -924,19 +1036,6 @@ extern "C" void OTRAudio_Exit() {
     free(gFontMap);
     free(gAudioCtx.seqLoadStatus);
     free(gAudioCtx.fontLoadStatus);
-}
-
-extern "C" void OTRExtScanner() {
-    auto lst = *Ship::Context::GetRawInstance()->GetResourceManager()->GetArchiveManager()->ListFiles("*").get();
-
-    for (auto& rPath : lst) {
-        std::vector<std::string> raw = StringHelper::Split(rPath, ".");
-        std::string ext = raw[raw.size() - 1];
-        std::string nPath = rPath.substr(0, rPath.size() - (ext.size() + 1));
-        replace(nPath.begin(), nPath.end(), '\\', '/');
-
-        ExtensionCache[nPath] = { rPath, ext };
-    }
 }
 
 // Read the port version from an archive file
@@ -1011,26 +1110,37 @@ extern "C" void InitOTR(int argc, char* argv[]) {
     std::shared_ptr<Ship::Config> conf = OTRGlobals::Instance->context->GetConfig();
     conf->RegisterVersionUpdater(std::make_shared<Ben::ConfigVersion1Updater>());
     conf->RunVersionUpdates();
+    MM3DS_TRACE("InitOTR: %s", "conf->RunVersionUpdates();");
     Ship::Context::GetRawInstance()->GetConsoleVariables()->Save();
 
     GameInteractor::Instance = new GameInteractor();
     AudioCollection::Instance = new AudioCollection();
+    MM3DS_TRACE("InitOTR: %s", "AudioCollection::Instance = new AudioCollection();");
     LoadGuiTextures();
+    MM3DS_TRACE("InitOTR: %s", "LoadGuiTextures();");
     ModMenu_LoadArchives();
+    MM3DS_TRACE("InitOTR: %s", "ModMenu_LoadArchives();");
     BenGui::SetupGuiElements();
+    MM3DS_TRACE("InitOTR: %s", "BenGui::SetupGuiElements();");
     ShipInit::InitAll();
+    MM3DS_TRACE("InitOTR: %s", "ShipInit::InitAll();");
     Rando::Init();
+    MM3DS_TRACE("InitOTR: %s", "Rando::Init();");
     GfxPatcher_ApplyNecessaryAuthenticPatches();
+    MM3DS_TRACE("InitOTR: %s", "GfxPatcher_ApplyNecessaryAuthenticPatches();");
     DebugConsole_Init();
     GameInteractor::Instance->RegisterOwnHooks();
     CustomItem::RegisterHooks();
     CustomMessage::RegisterHooks();
     Rando::StaticData::PopulateCheckNames();
+    MM3DS_TRACE("InitOTR: %s", "Rando::StaticData::PopulateCheckNames();");
 
     OTRMessage_Init();
+    MM3DS_TRACE("InitOTR: %s", "OTRMessage_Init();");
     OTRAudio_Init();
-    OTRExtScanner();
+    MM3DS_TRACE("InitOTR: %s", "OTRAudio_Init();");
     PlayerCustomFlipbooks_Patch();
+    MM3DS_TRACE("InitOTR: %s", "PlayerCustomFlipbooks_Patch();");
 
     // Just came up with arbitrary numbers that seemed to work, this is
     // usually set once(?) in currently stubbed out areas of code.
@@ -1242,12 +1352,16 @@ void RunCommands(Gfx* Commands, int time, int step, int denom, int count) {
 
 // C->C++ Bridge
 extern "C" void Graph_ProcessGfxCommands(Gfx* commands) {
+#ifdef __3DS__
+    Mm3dsAudioNotify();
+#else
     {
         std::unique_lock<std::mutex> Lock(audio.mutex);
         audio.processing = true;
     }
 
     audio.cv_to_thread.notify_one();
+#endif
     int target_fps = OTRGlobals::Instance->GetInterpolationFPS();
     static int last_fps;
     static int last_update_rate;
@@ -1293,12 +1407,14 @@ extern "C" void Graph_ProcessGfxCommands(Gfx* commands) {
     last_fps = fps;
     last_update_rate = R_UPDATE_RATE;
 
+#ifndef __3DS__
     {
         std::unique_lock<std::mutex> Lock(audio.mutex);
         while (audio.processing) {
             audio.cv_from_thread.wait(Lock);
         }
     }
+#endif
 
     bool curAltAssets = CVarGetInteger("gEnhancements.Mods.AlternateAssets", 0);
     if (prevAltAssets != curAltAssets) {
@@ -1398,7 +1514,8 @@ static void ResourceMgr_PreloadAltWhenItExists(const char* resName) {
         path = path.substr(7);
     }
 
-    if (ResourceMgr_IsAltAssetsEnabled() && ExtensionCache.contains(Ship::IResource::gAltAssetPrefix + path)) {
+    if (ResourceMgr_IsAltAssetsEnabled() && Ship::Context::GetRawInstance()->GetResourceManager()->GetArchiveManager()->HasFile(
+                                                     Ship::IResource::gAltAssetPrefix + path)) {
         Ship::Context::GetRawInstance()->GetResourceManager()->LoadResource(Ship::IResource::gAltAssetPrefix + path,
                                                                             true);
     }
@@ -1427,7 +1544,7 @@ extern "C" uint8_t ResourceMgr_FileExists(const char* filePath) {
         path = path.substr(7);
     }
 
-    return ExtensionCache.contains(path);
+    return Ship::Context::GetRawInstance()->GetResourceManager()->GetArchiveManager()->HasFile(path);
 }
 
 extern "C" void ResourceMgr_LoadFile(const char* resName) {
