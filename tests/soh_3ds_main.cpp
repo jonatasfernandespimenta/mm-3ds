@@ -117,16 +117,24 @@ void __system_allocateHeaps(void) {
     if (usable != 0) {
         __ctru_heap_size = usable;
     }
-    sGrantedHeapSize = __ctru_heap_size;
-
-    if (R_FAILED(svcControlMemory(&__ctru_heap, OS_HEAP_AREA_BEGIN, 0x0, __ctru_heap_size, MEMOP_ALLOC,
-                                  (MemPerm)(MEMPERM_READ | MEMPERM_WRITE)))) {
-        svcBreak(USERBREAK_PANIC);
-    }
+    // Linear first: fixed size, the GPU cannot run without it.
     if (R_FAILED(svcControlMemory(&__ctru_linear_heap, 0x0, 0x0, __ctru_linear_heap_size, MEMOP_ALLOC_LINEAR,
                                   (MemPerm)(MEMPERM_READ | MEMPERM_WRITE)))) {
         svcBreak(USERBREAK_PANIC);
     }
+    // MM-3DS hardware (New 3DS, 178MB mode): the computed heap reaches the
+    // ~127 MB virtual interval up to the main stack; Azahar grants it, the
+    // console refused it and this used to svcBreak at boot. Step down until
+    // the kernel accepts instead - the game itself needs ~50 MB.
+    // ponytail: 4 MB steps, 32 MB floor; log the grant if a boot is slow.
+    while (R_FAILED(svcControlMemory(&__ctru_heap, OS_HEAP_AREA_BEGIN, 0x0, __ctru_heap_size, MEMOP_ALLOC,
+                                     (MemPerm)(MEMPERM_READ | MEMPERM_WRITE)))) {
+        if (__ctru_heap_size <= 32 * 1024 * 1024) {
+            svcBreak(USERBREAK_PANIC);
+        }
+        __ctru_heap_size -= 4 * 1024 * 1024;
+    }
+    sGrantedHeapSize = __ctru_heap_size;
     mappableInit(OS_MAP_AREA_BEGIN, OS_MAP_AREA_END);
     fake_heap_start = (char*)__ctru_heap;
     fake_heap_end = fake_heap_start + __ctru_heap_size;
