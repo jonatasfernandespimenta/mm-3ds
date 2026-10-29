@@ -22,11 +22,13 @@
 #include "archives/icon_item_static/icon_item_static_yar.h"
 #include "interface/icon_item_field_static/icon_item_field_static.h"
 #include "archives/icon_item_24_static/icon_item_24_static_yar.h"
+#include "interface/icon_item_dungeon_static/icon_item_dungeon_static.h"
 
 int Soh3dsTouchRead(int* x, int* y) __attribute__((weak));
 extern const u8 default_font_bin[]; // fonte do console da libctru
 extern u16 sMasksGivenOnMoonBits[]; // z_kaleido_mask.c
 extern const char* gAmmoDigitTextures[10]; // z_parameter.c
+extern const char* sCounterTextures[];       // z_parameter.c
 
 // Mesma ordem do pause (R avança): Itens, Mapa, Quest Status, Máscaras; Save é a página extra.
 enum { PAGE_ITEMS, PAGE_MAP, PAGE_QUEST, PAGE_MASKS, PAGE_SAVE, PAGE_COUNT };
@@ -72,7 +74,8 @@ static struct {
     u16 injectButtons; // botões a injetar no próximo GameState_GetInput
     int confirm;       // botão do save aguardando o 2º toque (slot*2 + carregar), ou -1
     int questSong;     // música selecionada na Quest Status (QUEST_SONG_*), ou -1
-} sUi = { PAGE_ITEMS, 0, 0, 0, 0, 0, 0, -1, 0, -1, 0, -1, -1 };
+    int songPlaying;   // a melodia da questSong está tocando (playback da ocarina)
+} sUi = { PAGE_ITEMS, 0, 0, 0, 0, 0, 0, -1, 0, -1, 0, -1, -1, 0 };
 
 static const u8 sFormMasks[PLAYER_FORM_MAX] = {
     ITEM_MASK_FIERCE_DEITY, ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_MASK_DEKU, ITEM_NONE,
@@ -349,6 +352,24 @@ static const s16 sQuestHitLeft[] = { 45, 78, 10, 45, 80, 11, -109, -87, -65, -41
 static const s16 sQuestHitTop[] = { 62, 42, 42, 20, -9, -9, -20, -20, -20, -20, -20, -20,
                                     2, 2, 2, 2, 2, 2, 54 };
 
+// Fim do playback (ou interrupção): instrumento desligado, como o kaleido faz
+// ao sair de PAUSE_MAIN_STATE_SONG_PLAYBACK; a ocarina do jogo não fica ligada.
+static void Bs_StopSong(void) {
+    if (sUi.songPlaying) {
+        AudioOcarina_SetInstrument(OCARINA_INSTRUMENT_OFF);
+        sUi.songPlaying = 0;
+    }
+}
+
+static void Bs_UpdateSong(PlayState* play) {
+    if (!sUi.songPlaying) {
+        return;
+    }
+    if (AudioOcarina_GetPlaybackStaff()->state == 0 || sUi.page != PAGE_QUEST || !Bs_CanEquipNow(play)) {
+        Bs_StopSong();
+    }
+}
+
 static int Bs_QuestAt(int x, int y) {
     for (int q = QUEST_SONG_SONATA; q <= QUEST_BOMBERS_NOTEBOOK; q++) {
         int w = q == QUEST_BOMBERS_NOTEBOOK ? 32 : 16, h = q == QUEST_BOMBERS_NOTEBOOK ? 32 : 24;
@@ -371,8 +392,17 @@ static void Bs_QuestTap(PlayState* play, int x, int y) {
         }
     } else if (q >= QUEST_SONG_SONATA &&
                (CHECK_QUEST_ITEM(q) || (q == QUEST_SONG_LULLABY && CHECK_QUEST_ITEM(QUEST_SONG_LULLABY_INTRO)))) {
-        sUi.questSong = sUi.questSong == q ? -1 : q;
-        Audio_PlaySfx(NA_SE_SY_CURSOR);
+        if (sUi.questSong != q) {
+            Bs_StopSong();
+            sUi.questSong = q;
+            Audio_PlaySfx(NA_SE_SY_CURSOR);
+        } else if (!sUi.songPlaying && Bs_CanEquipNow(play)) {
+            // 2º toque: toca a melodia como o pause (PAUSE_MAIN_STATE_SONG_PLAYBACK_INIT).
+            AudioOcarina_SetInstrument(OCARINA_INSTRUMENT_DEFAULT);
+            AudioOcarina_SetPlaybackSong(gOcarinaSongItemMap[q - QUEST_SONG_SONATA] + 1, 1);
+            AudioOcarina_GetPlaybackStaff()->pos = 0;
+            sUi.songPlaying = 1;
+        }
     }
 }
 
@@ -380,6 +410,7 @@ static void Bs_SetPage(int page) {
     sUi.page = (page + PAGE_COUNT) % PAGE_COUNT;
     sUi.selSlot = -1;
     sUi.confirm = -1;
+    Bs_StopSong();
     sUi.questSong = -1;
     if (sUi.page == PAGE_SAVE) {
         Qs_RefreshInfo();
@@ -834,8 +865,12 @@ static Gfx* Bs_DrawQuest(Gfx* gfx) {
         gDPSetCombineMode(gfx++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
         for (int k = 0; k < song->numButtons && k < 8; k++) {
             u8 button = song->buttonIndex[k];
+            // Tocando: notas ainda não tocadas ficam apagadas (cinza do kaleido).
+            int lit = !sUi.songPlaying || k < AudioOcarina_GetPlaybackStaff()->pos;
             gDPPipeSync(gfx++);
-            if (button == OCARINA_BTN_A) {
+            if (!lit) {
+                gDPSetPrimColor(gfx++, 0, 0, 150, 150, 150, 150);
+            } else if (button == OCARINA_BTN_A) {
                 gDPSetPrimColor(gfx++, 0, 0, 80, 150, 255, 255);
             } else {
                 gDPSetPrimColor(gfx++, 0, 0, 255, 255, 50, 255);
@@ -964,6 +999,72 @@ static Gfx* Bs_DrawWorldMap(PlayState* play, Gfx* gfx) {
     return gfx;
 }
 
+// Mapa de dungeon (KaleidoScope_DrawDungeonMap): o pause usa esta versão
+// quando a sala tem mapa (Map_CurRoomHasMapI, mesmo teste que liga
+// sInDungeonScene). Título, chave do chefe/bússola/mapa e fadas perdidas nas
+// posições do kaleido. ponytail: sem a lista de andares nem o mapa da sala
+// (MapDisp_DrawDungeonFloorSelect depende do sMapDisp que só o pause aloca);
+// ligar MapDisp_AllocDungeonMap aqui se fizer falta.
+static Gfx* Bs_DrawDungeonMap(Gfx* gfx) {
+    static TexturePtr sTitles[4] = { gPauseWoodfallTitleENGTex, gPauseSnowheadTitleENGTex,
+                                     gPauseGreatBayTitleENGTex, gPauseStoneTowerTitleENGTex };
+    static TexturePtr sItems[3] = { gQuestIconBossKeyTex, gQuestIconCompassTex, gQuestIconDungeonMapTex };
+    static TexturePtr sFairies[4] = { gStrayFairyWoodfallIconTex, gStrayFairySnowheadIconTex,
+                                      gStrayFairyGreatBayIconTex, gStrayFairyStoneTowerIconTex };
+    static const u8 sFairyPrim[4][3] = { { 255, 110, 160 }, { 90, 255, 100 }, { 120, 255, 255 }, { 245, 245, 90 } };
+    static const u8 sFairyEnv[4][3] = { { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 }, { 225, 170, 0 } };
+    static const s16 sItemX[3] = { -104, -76, -48 };
+    const int dungeon = gSaveContext.dungeonSceneSharedIndex;
+    if (dungeon < 0 || dungeon >= 4) {
+        return gfx;
+    }
+
+    gDPPipeSync(gfx++);
+    gDPSetCombineMode(gfx++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    gDPSetRenderMode(gfx++, G_RM_XLU_SURF, G_RM_XLU_SURF2);
+    gDPSetPrimColor(gfx++, 0, 0, 255, 255, 255, 255);
+    gDPLoadTextureBlock(gfx++, sTitles[dungeon], G_IM_FMT_IA, G_IM_SIZ_8b, 128, 16, 0, G_TX_NOMIRROR | G_TX_CLAMP,
+                        G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+    gfx = Bs_PageRect(gfx, -21, 54, 128, 16, 128, 16);
+    for (int i = DUNGEON_BOSS_KEY; i <= DUNGEON_MAP; i++) {
+        if (CHECK_DUNGEON_ITEM(i, dungeon)) {
+            gDPLoadTextureBlock(gfx++, sItems[i], G_IM_FMT_RGBA, G_IM_SIZ_32b, 24, 24, 0, G_TX_NOMIRROR | G_TX_CLAMP,
+                                G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+            gfx = Bs_PageRect(gfx, sItemX[i], -42, 24, 24, 24, 24);
+        }
+    }
+
+    // Fada: o kaleido desenha em tela (54,140) 32x24; tela do pause -> página: x-160, 121-y.
+    gDPPipeSync(gfx++);
+    gDPSetCombineLERP(gfx++, PRIMITIVE, ENVIRONMENT, TEXEL0, ENVIRONMENT, TEXEL0, 0, PRIMITIVE, 0, PRIMITIVE,
+                      ENVIRONMENT, TEXEL0, ENVIRONMENT, TEXEL0, 0, PRIMITIVE, 0);
+    gDPSetPrimColor(gfx++, 0, 0, sFairyPrim[dungeon][0], sFairyPrim[dungeon][1], sFairyPrim[dungeon][2], 255);
+    gDPSetEnvColor(gfx++, sFairyEnv[dungeon][0], sFairyEnv[dungeon][1], sFairyEnv[dungeon][2], 0);
+    gDPLoadTextureBlock(gfx++, sFairies[dungeon], G_IM_FMT_RGBA, G_IM_SIZ_32b, 32, 24, 0, G_TX_NOMIRROR | G_TX_CLAMP,
+                        G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+    gfx = Bs_PageRect(gfx, 54 - 160, 121 - 140, 32, 24, 32, 24);
+
+    // Contagem "NN/MM" (KaleidoScope_DrawDungeonStrayFairyCount): dígitos I8 8x16
+    // com sombra preta deslocada 1 px, em tela x 88/96, barra 106, total 116/124.
+    int have = gSaveContext.save.saveInfo.inventory.strayFairies[dungeon];
+    TexturePtr glyphs[5] = { sCounterTextures[(have / 10) % 10], sCounterTextures[have % 10],
+                             gStrayFairyMapCounterSlashTex, sCounterTextures[STRAY_FAIRY_SCATTERED_TOTAL / 10],
+                             sCounterTextures[STRAY_FAIRY_SCATTERED_TOTAL % 10] };
+    static const s16 sGlyphX[5] = { 88, 96, 106, 116, 124 };
+    gDPPipeSync(gfx++);
+    gDPSetCombineMode(gfx++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    for (int pass = 0; pass < 2; pass++) {
+        gDPPipeSync(gfx++);
+        gDPSetPrimColor(gfx++, 0, 0, pass ? 255 : 0, pass ? 255 : 0, pass ? 255 : 0, 255);
+        for (int g = 0; g < 5; g++) {
+            gDPLoadTextureBlock(gfx++, glyphs[g], G_IM_FMT_I, G_IM_SIZ_8b, 8, 16, 0, G_TX_NOMIRROR | G_TX_CLAMP,
+                                G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+            gfx = Bs_PageRect(gfx, sGlyphX[g] + (pass ? 0 : 1) - 160, 121 - (pass ? 145 : 146), 8, 16, 8, 16);
+        }
+    }
+    return gfx;
+}
+
 // Página extra (não existe no pause): painel próprio com os 2 slots.
 static Gfx* Bs_DrawSavePage(Gfx* gfx) {
     static const char* sDays[] = { "Dia 0", "Dia 1", "Dia 2", "Dia 3", "Dia 4" };
@@ -1019,6 +1120,7 @@ void Mm3dsBottomScreen_Draw(PlayState* play) {
         return;
     }
     Bs_Update(play);
+    Bs_UpdateSong(play);
 
     OPEN_DISPS(play->state.gfxCtx);
     gsSPSetFB(POLY_OPA_DISP++, gBottomScreenFrameBuffer);
@@ -1033,6 +1135,8 @@ void Mm3dsBottomScreen_Draw(PlayState* play) {
         gfx = Bs_DrawGrid(gfx);
     } else if (sUi.page == PAGE_QUEST) {
         gfx = Bs_DrawQuest(gfx);
+    } else if (sUi.page == PAGE_MAP && Map_CurRoomHasMapI(play)) {
+        gfx = Bs_DrawDungeonMap(gfx);
     } else if (sUi.page == PAGE_MAP) {
         gfx = Bs_DrawWorldMap(play, gfx);
     } else {
