@@ -75,7 +75,18 @@ static struct {
     int confirm;       // botão do save aguardando o 2º toque (slot*2 + carregar), ou -1
     int questSong;     // música selecionada na Quest Status (QUEST_SONG_*), ou -1
     int songPlaying;   // a melodia da questSong está tocando (playback da ocarina)
-} sUi = { PAGE_ITEMS, 0, 0, 0, 0, 0, 0, -1, 0, -1, 0, -1, -1, 0 };
+    int fastHeld;      // dedo no botão de avanço rápido neste frame
+} sUi = { PAGE_ITEMS, 0, 0, 0, 0, 0, 0, -1, 0, -1, 0, -1, -1, 0, 0 };
+
+// Avanço rápido: botão sobre a página durante diálogo/cutscene. Segurando,
+// Play_Main roda FF_EXTRA_UPDATES atualizações a mais por frame (só a última é
+// desenhada) e o A é apertado sozinho quando a caixa de texto terminou -
+// nunca em caixas com escolha, para não responder nada pelo jogador.
+#define FF_X0 70
+#define FF_X1 250
+#define FF_Y0 6
+#define FF_Y1 40
+#define FF_EXTRA_UPDATES 3
 
 static const u8 sFormMasks[PLAYER_FORM_MAX] = {
     ITEM_MASK_FIERCE_DEITY, ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_MASK_DEKU, ITEM_NONE,
@@ -477,9 +488,35 @@ static void Bs_Release(PlayState* play, int x, int y) {
     }
 }
 
+static int Bs_FastForwardVisible(PlayState* play) {
+    return play->pauseCtx.state == PAUSE_STATE_OFF && (play->msgCtx.msgMode != MSGMODE_NONE || Play_InCsMode(play));
+}
+
+static int Bs_InFastForwardButton(int x, int y) {
+    return x >= FF_X0 && x < FF_X1 && y >= FF_Y0 && y < FF_Y1;
+}
+
+int Mm3dsBottomScreen_FastForwardUpdates(PlayState* play) {
+    return sUi.fastHeld && Bs_FastForwardVisible(play) ? FF_EXTRA_UPDATES : 0;
+}
+
 static void Bs_Update(PlayState* play) {
     int x = 0, y = 0;
     int held = Soh3dsTouchRead != NULL && Soh3dsTouchRead(&x, &y);
+    sUi.fastHeld = held && Bs_FastForwardVisible(play) && Bs_InFastForwardButton(x, y);
+    if (sUi.fastHeld) {
+        u8 endType = play->msgCtx.textboxEndType;
+        if (play->msgCtx.msgMode == MSGMODE_TEXT_DONE && !(endType >= TEXTBOX_ENDTYPE_TWO_CHOICE &&
+                                                           endType <= TEXTBOX_ENDTYPE_12)) {
+            sUi.injectButtons |= BTN_A;
+        }
+        // Segurar o botão não é toque/arraste na página.
+        sUi.down = 0;
+        sUi.heldFrames = 0;
+        sUi.dragging = 0;
+        sUi.dragSlot = -1;
+        return;
+    }
     if (held) {
         // Duas amostras seguidas antes de valer: o Azahar solta toques de um
         // frame na emenda das telas e o 1º contato do painel é o mais ruidoso.
@@ -1157,6 +1194,15 @@ void Mm3dsBottomScreen_Draw(PlayState* play) {
         gfx = Bs_DrawWorldMap(play, gfx);
     } else {
         gfx = Bs_DrawSavePage(gfx);
+    }
+    if (Bs_FastForwardVisible(play)) {
+        const char* label = sUi.fastHeld ? ">> FAST-FORWARDING" : ">> HOLD TO FAST-FORWARD";
+        gfx = Bs_FillState(gfx);
+        gfx = Bs_Fill(gfx, FF_X0, FF_Y0, FF_X1 - 1, FF_Y1 - 1, 20, 20, 16, 230);
+        gfx = Bs_Fill(gfx, FF_X0 + 2, FF_Y0 + 2, FF_X1 - 3, FF_Y1 - 3, sUi.fastHeld ? 200 : 70,
+                      sUi.fastHeld ? 160 : 110, sUi.fastHeld ? 40 : 150, 255);
+        gfx = Bs_TextState(gfx);
+        gfx = Bs_Text(gfx, label, 160 - Bs_TextWidth(label) / 2, (FF_Y0 + FF_Y1) / 2 - 6, 255, 255, 255);
     }
     gfx = Bs_DrawBar(gfx);
     gDPPipeSync(gfx++);

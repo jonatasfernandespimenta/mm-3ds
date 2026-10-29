@@ -1632,6 +1632,19 @@ void Play_Main(GameState* thisx) {
             this->state.gfxCtx = NULL;
         }
         Play_Update(this);
+#ifdef __3DS__
+        // Avanço rápido da tela de baixo (diálogo/cutscene): atualizações extras
+        // sem desenho. Os "press" são descartados nelas para um toque de botão
+        // não valer várias vezes; para se a cena encerrou o gamestate.
+        for (s32 extra = Mm3dsBottomScreen_FastForwardUpdates(this); extra > 0 && this->state.running; extra--) {
+            Input* input = CONTROLLER1(&this->state);
+            input->press.button = 0;
+            input->rel.button = 0;
+            Play_Update(this);
+            CutsceneManager_Update();
+            CutsceneManager_ClearWaiting();
+        }
+#endif
         this->state.gfxCtx = gfxCtx;
     }
 
