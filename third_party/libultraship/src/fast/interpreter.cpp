@@ -2483,6 +2483,19 @@ void Interpreter::DeriveTriState() {
                 tex_height[i] = tex_height2[i];
             }
 
+#ifdef __3DS__
+            // O PICA não tem clamp por fragmento (o backend só faz min() da UV por
+            // vértice). Com CLAMP e a tile cobrindo exatamente a textura, o clamp
+            // do N64 nunca deixa o MIRROR acontecer: CLAMP_TO_EDGE de hardware é
+            // exato. Camiseta dos Bombers (object_cs, I8 16x16 MIRROR|CLAMP com
+            // UVs de -32 a 30) saía espelhada/esticada pelo caminho emulado.
+            if ((cms & G_TX_CLAMP) && tex_width2[i] == tex_width[i]) {
+                cms &= ~G_TX_MIRROR;
+            }
+            if ((cmt & G_TX_CLAMP) && tex_height2[i] == tex_height[i]) {
+                cmt &= ~G_TX_MIRROR;
+            }
+#endif
             uint32_t tex_width1 = tex_width[i] << (cms & G_TX_MIRROR);
             uint32_t tex_height1 = tex_height[i] << (cmt & G_TX_MIRROR);
 
