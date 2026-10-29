@@ -169,6 +169,9 @@ endif()
 add_custom_command(TARGET mm_3ds POST_BUILD
     COMMAND "${DEVKITPRO}/tools/bin/makerom" -f cia
         -o "${CMAKE_CURRENT_BINARY_DIR}/mm_3ds.cia" -elf "$<TARGET_FILE:mm_3ds>"
+        # Versão do título: o HOME Menu só relê ícone/banner do cache quando
+        # ela muda. Suba o minor ao trocar a arte.
+        -major 1 -minor 1 -micro 0
         -rsf "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf"
         -icon "${MM_CIA_ICON}"
         -banner "${MM_CIA_BANNER}"
