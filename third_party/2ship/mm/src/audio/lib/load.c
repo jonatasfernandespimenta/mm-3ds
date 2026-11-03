@@ -125,15 +125,15 @@ void AudioLoad_DecreaseSampleDmaTtls(void) {
     u32 i;
 
 #ifdef __3DS__
-    // MM 3DS: diagnóstico. As filas de reuso são indexadas por u8, então mais
-    // de 0x100 DMAs (ou lista nula) significa estado corrompido; sem isto o
-    // laço lê lixo para sempre e o jogo congela.
+    // MM 3DS: diagnostics. The reuse queues are indexed by u8, so more than
+    // 0x100 DMAs (or a null list) means corrupted state; without this the
+    // loop reads garbage forever and the game freezes.
     if (gAudioCtx.sampleDmas == NULL || gAudioCtx.sampleDmaCount > 0x100 ||
         gAudioCtx.sampleDmaListSize1 > gAudioCtx.sampleDmaCount) {
         static int sReported = 0;
         if (!sReported) {
             sReported = 1;
-            fprintf(stderr, "mm-3ds audio: sampleDmas CORROMPIDO dmas=%p count=%lu list1=%lu numNotes=%d resetStatus=%d specId=%d\n",
+            fprintf(stderr, "mm-3ds audio: sampleDmas CORRUPTED dmas=%p count=%lu list1=%lu numNotes=%d resetStatus=%d specId=%d\n",
                     (void*)gAudioCtx.sampleDmas, (unsigned long)gAudioCtx.sampleDmaCount,
                     (unsigned long)gAudioCtx.sampleDmaListSize1, (int)gAudioCtx.numNotes,
                     (int)gAudioCtx.resetStatus, (int)gAudioCtx.specId);

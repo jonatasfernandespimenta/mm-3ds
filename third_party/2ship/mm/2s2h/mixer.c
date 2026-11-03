@@ -18,15 +18,15 @@
 
 //#define DMEM_BUF_SIZE (0x1000 - 0x0330 - 0x10 - 0x40)
 #ifdef __3DS__
-// 3DS: endereços DMEM são u16 e nenhuma operação confere limites. Vozes com
-// pitch alto levam dmemUncompressedAddrOffset além dos 0xC80 originais e o
-// estouro caía em cima de gAudioCtx (confirmado com watchpoint). Cobrindo todo
-// o espaço u16 + folga para o maior nbytes, nenhum endereço sai do buffer;
-// endereços válidos se comportam igual. Comprimentos são limitados a DMEM_MAX
-// só como trava (comandos de 5 KiB são normais aqui; um teto de 4 KiB cortava
-// áudio válido e estourava o som); a folga cobre o pior caso de cada comando
-// com esse limite (aInterlImpl lê 4x) e leituras logo antes do endereço
-// (aResampleImpl). ponytail: ~192 KB de RAM.
+// 3DS: DMEM addresses are u16 and no operation checks bounds. High-pitch
+// voices push dmemUncompressedAddrOffset past the original 0xC80 and the
+// overflow landed on gAudioCtx (confirmed with a watchpoint). Covering the
+// whole u16 space + slack for the largest nbytes, no address leaves the buffer;
+// valid addresses behave the same. Lengths are clamped to DMEM_MAX only as
+// a safety stop (5 KiB commands are normal here; a 4 KiB cap cut valid
+// audio and blew up the sound); the slack covers each command's worst case
+// with that limit (aInterlImpl reads 4x) and reads just before the address
+// (aResampleImpl). ponytail: ~192 KB of RAM.
 #define DMEM_FRONT 0x40
 #define DMEM_MAX 0x8000
 #define DMEM_BUF_SIZE (DMEM_FRONT + 0x10000 + 4 * DMEM_MAX)
@@ -108,9 +108,9 @@ static inline int32_t clamp32(int64_t v) {
 }
 
 #ifdef __3DS__
-// 3DS: a engine às vezes emite comandos com comprimento absurdo (~64 KiB de
-// aClearBuffer quando a nota passa do fim do loop, ou nbytes negativo) que
-// zeravam globais vizinhas (runFrameContext, confirmado com watchpoint).
+// 3DS: the engine sometimes emits commands with absurd lengths (~64 KiB of
+// aClearBuffer when the note runs past the loop end, or negative nbytes) that
+// zeroed neighbouring globals (runFrameContext, confirmed with a watchpoint).
 static inline int dmem_len(int n, const char* fn) {
     if (n <= 0) {
         return 0;
@@ -118,7 +118,7 @@ static inline int dmem_len(int n, const char* fn) {
     if (n > DMEM_MAX) {
         static unsigned sClamps;
         if ((sClamps++ & 63) == 0) {
-            fprintf(stderr, "mm-3ds mixer: DMEM len %d -> 0x%x em %s (total %u)\n", n, DMEM_MAX, fn, sClamps);
+            fprintf(stderr, "mm-3ds mixer: DMEM len %d -> 0x%x in %s (total %u)\n", n, DMEM_MAX, fn, sClamps);
         }
         return DMEM_MAX;
     }

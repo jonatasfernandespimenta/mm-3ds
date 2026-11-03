@@ -1326,7 +1326,7 @@ Acmd* AudioSynth_ProcessSample(s32 noteIndex, NoteSampleState* sampleState, Note
                         static int sReported;
                         if (sReported++ < 4) {
                             fprintf(stderr,
-                                    "mm-3ds synth: clear negativo note=%d load=%lu adj=%ld proc=%ld pos=%lu codec=%u "
+                                    "mm-3ds synth: negative clear note=%d load=%lu adj=%ld proc=%ld pos=%lu codec=%u "
                                     "size=%lu loop=%lu..%lu count=%lu freq=%u\n",
                                     (int)noteIndex, (unsigned long)numSamplesToLoad, (long)numSamplesToLoadAdj,
                                     (long)numSamplesProcessed, (unsigned long)synthState->samplePosInt,

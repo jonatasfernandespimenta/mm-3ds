@@ -119,13 +119,13 @@ int main() {
     expect(compact.Capture(source.data(),512,256,320,240,false), "stencil fixture capture");
     expect(compact.Sample(399,239)==0, "D24 inversion ignores stencil byte");
     {
-        // Captura parcial: depois de uma completa, só os tiles pedidos por Want()
-        // são copiados; o ponto pedido bate com o oracle e longe dele vira Far.
+        // Partial capture: after a full one, only the tiles requested by Want()
+        // are copied; the wanted point matches the oracle and far from it is Far.
         for (size_t i = 0; i < source.size(); ++i) source[i] = static_cast<uint32_t>(i * 2654435761U);
         DepthSnapshot3DS partial; DepthSnapshotBefore full;
         expect(partial.Capture(source.data(),512,256,400,240,false), "partial: first capture is full");
-        partial.Want(200,120); partial.Want(-5,-5); // fora da tela é ignorado
-        for (size_t i = 0; i < source.size(); ++i) source[i] ^= 0x00123456U; // frame seguinte
+        partial.Want(200,120); partial.Want(-5,-5); // off-screen is ignored
+        for (size_t i = 0; i < source.size(); ++i) source[i] ^= 0x00123456U; // next frame
         expect(partial.Capture(source.data(),512,256,400,240,false), "partial capture");
         expect(full.Capture(source.data(),512,256,400,240,false), "partial oracle");
         expect(partial.Sample(200,120)==full.Sample(200,120), "partial: wanted point equals oracle");

@@ -19,7 +19,7 @@
 // weak, never defined, always null, so the probe silently never fires and its
 // definition is then garbage-collected. That mistake cost three builds.
 extern "C" void Soh3dsPadProbe(unsigned int button, int stickX, int stickY) __attribute__((weak));
-extern "C" void Soh3dsControls_TransformPad(uint32_t physicalButtons, CONTROLLERBUTTONS_T* buttons) __attribute__((weak)); // MM: botões de 32 bits
+extern "C" void Soh3dsControls_TransformPad(uint32_t physicalButtons, CONTROLLERBUTTONS_T* buttons) __attribute__((weak)); // MM: 32-bit buttons
 
 namespace {
 void Soh3dsControls_EnsureCameraMappings(const std::shared_ptr<Ship::Controller>& controller) {

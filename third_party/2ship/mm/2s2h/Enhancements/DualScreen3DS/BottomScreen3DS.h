@@ -5,16 +5,16 @@
 struct PlayState;
 struct Input;
 
-// Framebuffer Fast3D que É a tela de baixo (framebuffer_effects.c).
+// Fast3D framebuffer that IS the bottom screen (framebuffer_effects.c).
 extern s32 gBottomScreenFrameBuffer;
-// z_kaleido_item.c: itens que cada forma pode usar.
+// z_kaleido_item.c: items each form can use.
 extern u8 gPlayerFormSlotRestrictions[PLAYER_FORM_MAX][ITEM_NUM_SLOTS];
 
-// Play_PostWorldDraw: toque + desenho da tela de baixo.
+// Play_PostWorldDraw: bottom screen touch + drawing.
 void Mm3dsBottomScreen_Draw(struct PlayState* play);
-// Play_Main: atualizações extras por frame enquanto o avanço rápido é segurado.
+// Play_Main: extra updates per frame while fast-forward is held.
 int Mm3dsBottomScreen_FastForwardUpdates(struct PlayState* play);
-// GameState_GetInput: botões disparados por toque (slots I/II).
+// GameState_GetInput: buttons fired by touch (slots I/II).
 void Mm3dsBottomScreen_InjectInput(struct Input* input);
 
 #endif

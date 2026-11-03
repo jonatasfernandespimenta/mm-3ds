@@ -2484,11 +2484,11 @@ void Interpreter::DeriveTriState() {
             }
 
 #ifdef __3DS__
-            // O PICA não tem clamp por fragmento (o backend só faz min() da UV por
-            // vértice). Com CLAMP e a tile cobrindo exatamente a textura, o clamp
-            // do N64 nunca deixa o MIRROR acontecer: CLAMP_TO_EDGE de hardware é
-            // exato. Camiseta dos Bombers (object_cs, I8 16x16 MIRROR|CLAMP com
-            // UVs de -32 a 30) saía espelhada/esticada pelo caminho emulado.
+            // PICA has no per-fragment clamp (the backend only does a per-vertex UV
+            // min()). With CLAMP and the tile covering exactly the texture, the N64
+            // clamp never lets MIRROR happen: hardware CLAMP_TO_EDGE is
+            // exact. The Bombers' shirt (object_cs, I8 16x16 MIRROR|CLAMP with
+            // UVs from -32 to 30) came out mirrored/stretched via the emulated path.
             if ((cms & G_TX_CLAMP) && tex_width2[i] == tex_width[i]) {
                 cms &= ~G_TX_MIRROR;
             }
@@ -4564,10 +4564,10 @@ bool gfx_dl_otr_hash_handler_custom(F3DGfx** cmd0) {
 
         uint64_t hash = ((uint64_t)(*cmd0)->words.w0 << 32) + (*cmd0)->words.w1;
 
-        // MM-3DS: mesmo memo por hash das texturas (mTextureByHash; chaves são
-        // CRC64 de path, sem colisão com texturas). Uma sala de Clock Town tem
-        // ~430 G_DL_OTR_HASH por frame, cada um HashToString + cópia de string +
-        // mutex na resolução completa. weak_ptr: eviction continua liberando.
+        // MM-3DS: same per-hash memo as textures (mTextureByHash; keys are path
+        // CRC64, no collision with textures). A Clock Town room has
+        // ~430 G_DL_OTR_HASH per frame, each a HashToString + string copy +
+        // mutex on full resolution. weak_ptr: eviction still frees them.
         Interpreter* intp = sInterpreterRaw;
         F3DGfx* gfx = nullptr;
         auto memo = intp->mTextureByHash.find(hash);
@@ -4642,10 +4642,10 @@ bool gfx_branch_z_otr_handler_f3dex2(F3DGfx** cmd0) {
         (gfx->mRsp->extra_geometry_mode & G_EX_ALWAYS_EXECUTE_BRANCH) != 0) {
         uint64_t hash = ((uint64_t)(*cmd0)->words.w0 << 32) + (*cmd0)->words.w1;
 
-        // MM-3DS: mesmo memo por hash das texturas (mTextureByHash; chaves são
-        // CRC64 de path, sem colisão com texturas). Uma sala de Clock Town tem
-        // ~430 G_DL_OTR_HASH por frame, cada um HashToString + cópia de string +
-        // mutex na resolução completa. weak_ptr: eviction continua liberando.
+        // MM-3DS: same per-hash memo as textures (mTextureByHash; keys are path
+        // CRC64, no collision with textures). A Clock Town room has
+        // ~430 G_DL_OTR_HASH per frame, each a HashToString + string copy +
+        // mutex on full resolution. weak_ptr: eviction still frees them.
         Interpreter* intp = sInterpreterRaw;
         F3DGfx* gfx = nullptr;
         auto memo = intp->mTextureByHash.find(hash);

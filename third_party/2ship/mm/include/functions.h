@@ -233,7 +233,7 @@ void Check_RegionIsSupported(void);
 u64* SysUcode_GetUCodeBoot(void);
 size_t SysUcode_GetUCodeBootSize(void);
 // BENTODO move this into its own header so we don't have so much header bloat with lus bridge
-u32 SysUcode_GetUCode(void); // 3DS: casa com o enum UcodeHandlers
+u32 SysUcode_GetUCode(void); // 3DS: matches the UcodeHandlers enum
 u64* SysUcode_GetUCodeData(void);
 
 s32 SysFlashrom_InitFlash(void);

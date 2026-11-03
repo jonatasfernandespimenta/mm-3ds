@@ -45,5 +45,5 @@ __pycache__/
 .git
 .gitmodules
 
-# Arte do HOME Menu do MM (derivada da arte da Nintendo): só local
+# MM HOME Menu art (derived from Nintendo's art): local only
 platform/3ds/cia/mm/

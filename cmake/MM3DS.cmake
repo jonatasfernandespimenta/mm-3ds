@@ -1,12 +1,12 @@
 # ============================================================================
 # Majora's Mask (2 Ship 2 Harkinian) on 3DS
 # ============================================================================
-# Espelha a seção soh_decomp/soh_enhancement do CMakeLists.txt raiz, mas para
-# third_party/2ship/mm. Mesma divisão: decomp em C, camada 2s2h em C++.
+# Mirrors the soh_decomp/soh_enhancement section of the root CMakeLists.txt, but for
+# third_party/2ship/mm. Same split: decomp in C, 2s2h layer in C++.
 set(MM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/2ship/mm")
 set(TS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/2ship")
 
-# Prefixos de CVar e defines de log, como o CMakeLists raiz do 2S2H faz.
+# CVar prefixes and log defines, as the 2S2H root CMakeLists does.
 include("${TS_DIR}/CMake/2ship-cvars.cmake")
 file(READ "${TS_DIR}/CMake/lus-cvars.cmake" _mm_lus_cvars)
 string(REPLACE "include(\"libultraship/cmake/cvars.cmake\")" "" _mm_lus_cvars "${_mm_lus_cvars}")
@@ -29,8 +29,8 @@ set(MM_INCLUDES
 
 # --- decomp (mm/src) --------------------------------------------------------
 file(GLOB_RECURSE MM_DECOMP_SOURCES "${MM_DIR}/src/*.c")
-# Mesma lista de exclusão do mm/CMakeLists.txt upstream: o 2S2H tira toda a
-# libultra (a LUS fornece), dmadata e elf_message.
+# Same exclusion list as the upstream mm/CMakeLists.txt: 2S2H drops all of
+# libultra (LUS provides it), dmadata and elf_message.
 foreach(_ex dmadata elf_message libultra)
     list(FILTER MM_DECOMP_SOURCES EXCLUDE REGEX "/mm/src/${_ex}/")
 endforeach()
@@ -40,24 +40,24 @@ message(STATUS "mm decomp: ${MM_DECOMP_COUNT} translation units")
 add_library(mm_decomp STATIC ${MM_DECOMP_SOURCES})
 target_include_directories(mm_decomp PRIVATE ${MM_INCLUDES})
 target_compile_definitions(mm_decomp PRIVATE ${MM_COMMON_DEFS})
-# ponytail: -w -fpermissive pelo mesmo motivo do soh_decomp (GCC 16 promove
-# conversões ponteiro/inteiro a erro); -Os pelo orçamento de .text.
+# ponytail: -w -fpermissive for the same reason as soh_decomp (GCC 16 promotes
+# pointer/integer conversions to errors); -Os for the .text budget.
 target_compile_options(mm_decomp PRIVATE -w -fpermissive -Os -g)
 set_target_properties(mm_decomp PROPERTIES C_STANDARD 11 EXCLUDE_FROM_ALL TRUE)
 
-# --- camada 2s2h (mm/2s2h) --------------------------------------------------
+# --- 2s2h layer (mm/2s2h) ---------------------------------------------------
 file(GLOB_RECURSE MM_ENH_SOURCES "${MM_DIR}/2s2h/*.cpp" "${MM_DIR}/2s2h/*.c")
-# Extrator roda no PC (mm.o2r vai pronto no SD).
+# Extractor runs on PC (mm.o2r ships ready-made on the SD).
 list(FILTER MM_ENH_SOURCES EXCLUDE REGEX "/2s2h/Extractor/")
-# ponytail: pictógrafo colorido precisa de libpng (3ds-libpng exige root no
-# dkp-pacman). Se auto-registra, então tirar o arquivo só some com a opção.
+# ponytail: color pictograph needs libpng (3ds-libpng requires root in
+# dkp-pacman). It self-registers, so dropping the file just removes the option.
 list(FILTER MM_ENH_SOURCES EXCLUDE REGEX "/Enhancements/Items/ColorPictograph\\.cpp$")
 list(LENGTH MM_ENH_SOURCES MM_ENH_COUNT)
 message(STATUS "mm 2s2h layer: ${MM_ENH_COUNT} translation units")
 
 add_library(mm_enhancement STATIC ${MM_ENH_SOURCES})
-# O mixer do 2S2H inclui <opus/opus.h>; o opus vendorizado expõe os headers
-# direto em include/. Um symlink resolve sem mexer no fonte.
+# The 2S2H mixer includes <opus/opus.h>; the vendored opus exposes its headers
+# directly in include/. A symlink fixes it without touching the source.
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/mm-shim")
 file(CREATE_LINK "${CMAKE_CURRENT_SOURCE_DIR}/third_party/opus/include"
     "${CMAKE_CURRENT_BINARY_DIR}/mm-shim/opus" SYMBOLIC)
@@ -75,8 +75,8 @@ target_include_directories(mm_enhancement PRIVATE ${MM_INCLUDES}
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/opusfile/include"
     "${PORTLIBS}/include/SDL2")
 target_compile_definitions(mm_enhancement PRIVATE ${MM_COMMON_DEFS})
-# O 2S2H depende dos PCH para ordem de include (vários .cpp incluem BenPort.h
-# dentro de extern "C" assumindo que já foi incluído). Mesma lista do upstream.
+# 2S2H relies on the PCH for include order (several .cpp include BenPort.h
+# inside extern "C" assuming it was already included). Same list as upstream.
 target_precompile_headers(mm_enhancement PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:<libultraship/bridge/consolevariablebridge.h$<ANGLE-R>>"
     "$<$<COMPILE_LANGUAGE:CXX>:<ship/Context.h$<ANGLE-R>>"
@@ -100,9 +100,9 @@ target_precompile_headers(mm_enhancement PRIVATE
 target_compile_options(mm_enhancement PRIVATE -w -fpermissive -Os -g)
 set_target_properties(mm_enhancement PROPERTIES CXX_STANDARD 20 EXCLUDE_FROM_ALL TRUE)
 
-# --- o jogo: mm_3ds ---------------------------------------------------------
-# Mesmo esqueleto do soh_3ds_old: main do decomp (mm/src/code/main.c) chama
-# InitOTR do BenPort.cpp; .o2r pré-extraídos no SD, sem extrator no console.
+# --- the game: mm_3ds -------------------------------------------------------
+# Same skeleton as soh_3ds_old: the decomp main (mm/src/code/main.c) calls
+# InitOTR from BenPort.cpp; .o2r pre-extracted on the SD, no extractor on console.
 add_executable(mm_3ds tests/soh_3ds_main.cpp
     src/compat3ds/logging_3ds.cpp
     src/compat3ds/sleep_3ds.cpp
@@ -132,20 +132,20 @@ target_link_libraries(mm_3ds PRIVATE
     "${PORTLIBS}/lib/libtinyxml2.a" "${PORTLIBS}/lib/libzlibstatic.a"
     ${LIB_SDL2} ${LIB_CITRO3D} ${LIB_CTRU} m)
 target_compile_options(mm_3ds PRIVATE -w -fpermissive -Os)
-# Mesmos wraps do soh_3ds (pilha mínima de threads, malloc instrumentado).
+# Same wraps as soh_3ds (minimal thread stacks, instrumented malloc).
 target_link_options(mm_3ds PRIVATE -Wl,--wrap=__syscall_thread_create -Wl,--wrap=threadCreate
     -Wl,--wrap=malloc
     -Wl,--wrap=_ZSt20__throw_out_of_rangePKc -Wl,--wrap=_ZSt24__throw_out_of_range_fmtPKcz)
 set_target_properties(mm_3ds PROPERTIES CXX_STANDARD 20 EXCLUDE_FROM_ALL TRUE)
 
-# CIA: reaproveita o app.rsf do soh-3ds (178 MB no New 3DS). Título próprio
-# vem depois; por ora é só pra rodar no Azahar.
+# CIA: reuses the soh-3ds app.rsf (178 MB on New 3DS). Own title comes
+# later; for now it's just to run on Azahar.
 add_custom_command(TARGET mm_3ds POST_BUILD
     COMMAND "${DEVKITPRO}/tools/bin/3dsxtool" $<TARGET_FILE:mm_3ds> $<TARGET_FILE:mm_3ds>.3dsx
     COMMENT "3dsxtool -> mm_3ds.3dsx")
 
-# CIA: mesmo app.rsf do soh-3ds com título/ID próprios (não sobrescreve a
-# instalação do SoH) e 178 MB no New 3DS, como o perfil do soh_3ds_old.
+# CIA: same app.rsf as soh-3ds with its own title/ID (does not overwrite the
+# SoH install) and 178 MB on New 3DS, like the soh_3ds_old profile.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia/app.rsf" _mm_rsf)
 string(REPLACE "Title                   : Ship of Harkinian" "Title                   : 2 Ship 2 Harkinian" _mm_rsf "${_mm_rsf}")
 string(REPLACE "ProductCode             : CTR-P-SOH3" "ProductCode             : CTR-P-2SH3" _mm_rsf "${_mm_rsf}")
@@ -154,9 +154,9 @@ string(REPLACE "SystemModeExt                 : 124MB" "SystemModeExt           
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf" CONTENT "${_mm_rsf}")
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs/README.txt"
-    "Copie mm.o2r e 2ship.o2r para /3ds/2ship no cartao SD.\n")
-# Ícone/banner do HOME Menu próprios do MM (platform/3ds/cia/mm); sem eles,
-# os do soh-3ds. O banner sai do bannertool (makebanner -i banner.png -a banner.wav).
+    "Copy mm.o2r and 2ship.o2r to /3ds/2ship on the SD card.\n")
+# MM's own HOME Menu icon/banner (platform/3ds/cia/mm); without them,
+# the soh-3ds ones. The banner comes from bannertool (makebanner -i banner.png -a banner.wav).
 set(_mm_cia_dir "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia")
 set(MM_CIA_ICON "${_mm_cia_dir}/icon.icn")
 set(MM_CIA_BANNER "${_mm_cia_dir}/banner.bnr")
@@ -169,8 +169,8 @@ endif()
 add_custom_command(TARGET mm_3ds POST_BUILD
     COMMAND "${DEVKITPRO}/tools/bin/makerom" -f cia
         -o "${CMAKE_CURRENT_BINARY_DIR}/mm_3ds.cia" -elf "$<TARGET_FILE:mm_3ds>"
-        # Versão do título: o HOME Menu só relê ícone/banner do cache quando
-        # ela muda. Suba o minor ao trocar a arte.
+        # Title version: the HOME Menu only re-reads icon/banner from cache when
+        # it changes. Bump the minor when changing the art.
         -major 1 -minor 1 -micro 0
         -rsf "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf"
         -icon "${MM_CIA_ICON}"

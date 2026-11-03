@@ -81,10 +81,10 @@ extern "C" {
 #include "z64view.h"
 
 #ifdef __3DS__
-// 3DS: 32 MiB de system heap não cabem junto da LUS e do O2R (memalign voltava
-// NULL e o assert some com NDEBUG). gAudioHeapInitSizes só usa 0x37F000 do
-// audio heap. Play_Init pega toda a system heap livre para a cena.
-// ponytail: 16 MiB fixo; medir o pico se alguma cena grande ficar sem memória.
+// 3DS: a 32 MiB system heap doesn't fit alongside LUS and the O2R (memalign returned
+// NULL and the assert vanishes with NDEBUG). gAudioHeapInitSizes only uses 0x37F000
+// of the audio heap. Play_Init takes all free system heap for the scene.
+// ponytail: fixed 16 MiB; measure the peak if some large scene runs out of memory.
 #define AUDIO_HEAP_SIZE 0x380000
 #define SYSTEM_HEAP_SIZE (1024 * 1024 * 16)
 #else

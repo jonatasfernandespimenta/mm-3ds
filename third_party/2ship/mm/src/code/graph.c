@@ -431,7 +431,7 @@ void RunFrame() {
 
         runFrameContext.nextOvl = Graph_GetNextGameState(runFrameContext.gameState);
 #ifdef __3DS__
-        fprintf(stderr, "mm-3ds gamestate: fim de %p init=%p -> proximo ovl=%d\n", (void*)runFrameContext.gameState,
+        fprintf(stderr, "mm-3ds gamestate: end of %p init=%p -> next ovl=%d\n", (void*)runFrameContext.gameState,
                 runFrameContext.gameState ? (void*)runFrameContext.gameState->init : NULL,
                 runFrameContext.nextOvl ? (int)(runFrameContext.nextOvl - gGameStateOverlayTable) : -1);
 #endif

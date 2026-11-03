@@ -1,6 +1,6 @@
-// MM 3DS: unordered_map::at/vector::at lançam via std::__throw_out_of_range*.
-// O backtrace do terminate só mostra o handler, então registramos o chamador
-// antes de lançar. Resolva o endereço com arm-none-eabi-addr2line -e mm_3ds.
+// MM 3DS: unordered_map::at/vector::at throw via std::__throw_out_of_range*.
+// The terminate backtrace only shows the handler, so we log the caller
+// before throwing. Resolve the address with arm-none-eabi-addr2line -e mm_3ds.
 #include <cstdio>
 
 extern "C" {

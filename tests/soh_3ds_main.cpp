@@ -330,7 +330,7 @@ __attribute__((constructor(101))) static void SohCtrEarlyLogInit() {
     // sdmc:/3ds/soh/logs/SoH-3DS.log where FTP can reach it.
     // First launch must work on a blank SD. Create the data directory before
     // pinning cwd; the native setup screen will install its archives there.
-// MM 3DS: o build do Majora's Mask define SOH3DS_DATA_DIR como "sdmc:/3ds/2ship".
+// MM 3DS: the Majora's Mask build defines SOH3DS_DATA_DIR as "sdmc:/3ds/2ship".
 #ifndef SOH3DS_DATA_DIR
 #define SOH3DS_DATA_DIR "sdmc:/3ds/soh"
 #endif

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Build do Majora's Mask 3DS: libultraship (3DS) e depois mm_3ds.
-# No macOS rode com o bash do devkitPro: /opt/devkitpro/pacman/bin/bash
+# Majora's Mask 3DS build: libultraship (3DS), then mm_3ds.
+# On macOS run with devkitPro's bash: /opt/devkitpro/pacman/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
 export PATH="$PWD/../.bin:$DEVKITPRO/tools/bin:$PATH"
 JOBS="${MM_BUILD_JOBS:-$(sysctl -n hw.ncpu 2>/dev/null || nproc)}"
 
-# CONTROLLERBUTTONS_T=uint32_t: o 2S2H usa botões extras da ocarina (bits 16+)
-# e o define globalmente no build de PC, inclusive para a LUS. Sem isso os
-# símbolos de ControlDeck não batem (uint16_t vs uint32_t).
-# N3DS_BUILD=ON: tira o backend OpenGL da LUS.
+# CONTROLLERBUTTONS_T=uint32_t: 2S2H uses extra ocarina buttons (bits 16+)
+# and defines it globally in the PC build, LUS included. Without it the
+# ControlDeck symbols don't match (uint16_t vs uint32_t).
+# N3DS_BUILD=ON: drops the LUS OpenGL backend.
 cmake -S third_party/libultraship -B third_party/libultraship/build-3ds \
     -DCMAKE_TOOLCHAIN_FILE="$PWD/cmake/3DS.cmake" \
     -DCMAKE_BUILD_TYPE=Release \

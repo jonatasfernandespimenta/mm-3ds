@@ -26,10 +26,10 @@ class DepthSnapshot3DS {
         wanted.clear();
     }
 
-    // MM-3DS: anota o tile 8x8 (e vizinhos) de uma consulta para a próxima
-    // captura. O jogo consulta 1-2 pontos (sol, brilhos); copiar o buffer
-    // inteiro (~375 KiB) todo frame por isso dominava o custo. Sem geometria
-    // conhecida ainda, a próxima captura é completa.
+    // MM-3DS: marks the 8x8 tile (and neighbours) of a query for the next
+    // capture. The game queries 1-2 points (sun, glints); copying the whole
+    // buffer (~375 KiB) every frame for that dominated the cost. With no
+    // known geometry yet, the next capture is full.
     void Want(float x, float y) {
         requested = true;
         uint32_t tile;
@@ -38,7 +38,7 @@ class DepthSnapshot3DS {
             return;
         }
         if (!TileOf(x, y, &tile)) {
-            return; // fora da tela: Sample já devolve Far
+            return; // off-screen: Sample already returns Far
         }
         const int cols = static_cast<int>(capturedTileColumns);
         const int rows = static_cast<int>(capturedTileRows);
@@ -92,7 +92,7 @@ class DepthSnapshot3DS {
         const auto* sourceBytes = static_cast<const unsigned char*>(source) +
                                   firstTileRow * sourceRowPixels * sizeof(uint32_t);
         if (!wantAll && sameGeometry) {
-            // Só os tiles pedidos; o resto fica inválido (Sample devolve Far).
+            // Only the wanted tiles; the rest stays invalid (Sample returns Far).
             std::fill(tileValid.begin(), tileValid.end(), 0);
             for (uint32_t tile : wanted) {
                 const uint32_t row = tile / tileColumns, col = tile % tileColumns;
@@ -163,7 +163,7 @@ class DepthSnapshot3DS {
     }
 
   private:
-    // Índice do tile (linha capturada * colunas + coluna) que contém (x, y).
+    // Index of the tile (captured row * columns + column) containing (x, y).
     bool TileOf(float x, float y, uint32_t* tile) const {
         if (!valid || !std::isfinite(x) || !std::isfinite(y) || x < 0 || y < 0 || x >= 400 || y >= 240) {
             return false;

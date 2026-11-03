@@ -145,12 +145,12 @@ std::string portArchivePath = "";
 static bool shipArchiveVersionMatch = false;
 
 #ifdef __3DS__
-// MM 3DS: marcas de boot no stderr (svcOutputDebugString -> log do Azahar).
+// MM 3DS: boot markers on stderr (svcOutputDebugString -> Azahar log).
 #include <ship/utils/logging_3ds.h>
 extern "C" void Soh3dsBootStatus(const char* msg) __attribute__((weak));
 extern "C" void Soh3dsApplyLoggingSettings(void) __attribute__((weak));
 #include <malloc.h>
-// Cada marca leva ordblks/livre da heap: localiza qual etapa do boot fragmenta.
+// Each marker carries heap ordblks/free: pinpoints which boot step fragments.
 #define MM3DS_TRACE(...) (Soh3dsBootStatus != nullptr ? (void)fprintf(stderr, "mm-3ds: " __VA_ARGS__), \
     (void)fprintf(stderr, " [ordblks=%d fordKiB=%d]\n", mallinfo().ordblks, mallinfo().fordblks / 1024) : (void)0)
 #else
@@ -297,8 +297,8 @@ extern std::shared_ptr<BenGui::BenMenu> mBenMenu;
 }
 
 #ifdef __3DS__
-// 3DS: sem extrator no console. mm.o2r/2ship.o2r vêm prontos do PC; a tela de
-// src/setup/mm_prebuilt_3ds.cpp espera o usuário copiar os arquivos.
+// 3DS: no extractor on console. mm.o2r/2ship.o2r come ready-made from PC; the
+// src/setup/mm_prebuilt_3ds.cpp screen waits for the user to copy the files.
 extern "C" bool Soh3dsEnsureGameData();
 void OTRGlobals::RunExtract(int argc, char* argv[]) {
     if (!Soh3dsEnsureGameData()) {
@@ -678,7 +678,7 @@ void OTRGlobals::Initialize() {
     context->GetWindow()->SetForceCursorVisibility(CVarGetInteger("gSettings.CursorVisibility", 0));
 
     #ifdef __3DS__
-    // ~64 ms de reserva, como no SoH-3DS (produção pelo nível do buffer).
+    // ~64 ms of headroom, as in SoH-3DS (production driven by buffer level).
     context->InitAudio({ .SampleRate = 32000, .SampleLength = 1024, .DesiredBuffered = 2048 });
 #else
     context->InitAudio({ .SampleRate = 32000, .SampleLength = 1024, .DesiredBuffered = 1680 });
@@ -777,7 +777,7 @@ void OTRGlobals::Initialize() {
                                      "Attempted to load an invalid O2R file. Try regenerating.", nullptr);
             SPDLOG_ERROR("Invalid O2R File!");
 #endif
-            MM3DS_TRACE("Initialize: versao 0x%08lX invalida -> exit(1)", (unsigned long)version);
+            MM3DS_TRACE("Initialize: invalid version 0x%08lX -> exit(1)", (unsigned long)version);
             exit(1);
         }
     }
@@ -850,12 +850,12 @@ static struct {
 } audio;
 
 #ifdef __3DS__
-// 3DS (portado do SoH-3DS): a síntese roda no core 2 do New 3DS e produz pelo
-// nível do buffer do NDSP, uma atualização (528/544 amostras) por vez. A versão
-// de PC produzia 3 atualizações por frame do jogo, no core do jogo, e o jogo
-// esperava a síntese acabar: com ~1 frame de reserva, qualquer frame lento
-// virava buraco no som (gaps medidos no NDSP). O wake usa mutex próprio para o
-// jogo nunca esperar uma síntese em andamento.
+// 3DS (ported from SoH-3DS): synthesis runs on New 3DS core 2 and produces by
+// NDSP buffer level, one update (528/544 samples) at a time. The PC version
+// produced 3 updates per game frame, on the game core, and the game waited
+// for synthesis to finish: with ~1 frame of headroom, any slow frame became
+// a hole in the sound (gaps measured in NDSP). The wake uses its own mutex so
+// the game never waits on an in-progress synthesis.
 static std::mutex sAudioWakeMutex;
 
 static void Mm3dsAudioNotify() {
@@ -870,7 +870,7 @@ static bool Mm3dsAudioWait(bool& primed) {
     std::unique_lock<std::mutex> lock(sAudioWakeMutex);
     auto ready = [] { return audio.processing || !audio.running; };
     if (!primed) {
-        audio.cv_to_thread.wait(lock, ready); // engine precisa inicializar antes
+        audio.cv_to_thread.wait(lock, ready); // engine must initialize first
     } else {
         audio.cv_to_thread.wait_for(lock, std::chrono::milliseconds(5), ready);
     }
@@ -883,8 +883,8 @@ static bool Mm3dsAudioWait(bool& primed) {
 }
 
 void OTRAudio_Thread() {
-    // O sequenciador anda um passo fixo por atualização (60/s), então a média
-    // tem que ser 32000/60 = 533,33: 528, 544, 528...
+    // The sequencer advances a fixed step per update (60/s), so the average
+    // must be 32000/60 = 533.33: 528, 544, 528...
     constexpr u32 kLow = 528, kMid = 544;
     static s16 buffer[kMid * 2];
     int32_t debtThirds = 0;
@@ -903,7 +903,7 @@ void OTRAudio_Thread() {
     }
 }
 
-// <3ds.h> conflita com os typedefs da libultra; declara só o necessário.
+// <3ds.h> conflicts with libultra typedefs; declare only what's needed.
 extern "C" {
 typedef struct Thread_tag* Mm3dsThreadHandle;
 Mm3dsThreadHandle threadCreate(void (*entry)(void*), void* arg, size_t stackSize, int32_t prio, int32_t coreId,
@@ -968,8 +968,8 @@ extern "C" void OTRAudio_Init() {
     if (!audio.running) {
         audio.running = true;
 #ifdef __3DS__
-        // Prioridade acima da main (0x30). New 3DS: core 2 dedicado; senão a
-        // fatia do core 1 que o APT conceder; por último, core 0.
+        // Priority above main (0x30). New 3DS: dedicated core 2; otherwise the
+        // core 1 slice APT grants; as a last resort, core 0.
         constexpr size_t kAudioStack = 128 * 1024;
         constexpr int32_t kAudioPrio = 0x18;
         int core = -1;
@@ -1509,8 +1509,8 @@ extern "C" void ResourceMgr_UnloadResource(const char* resName) {
 }
 
 static void ResourceMgr_PreloadAltWhenItExists(const char* resName) {
-    // MM-3DS: chamado por limb/DL a cada frame; sem alt assets não há o que
-    // pré-carregar, então nem monta as strings abaixo.
+    // MM-3DS: called per limb/DL every frame; without alt assets there is nothing
+    // to preload, so don't even build the strings below.
     if (!ResourceMgr_IsAltAssetsEnabled()) {
         return;
     }
@@ -1558,9 +1558,9 @@ extern "C" void ResourceMgr_LoadFile(const char* resName) {
 
 std::shared_ptr<Ship::IResource> GetResourceByName(const char* path) {
     auto resourceManager = Ship::Context::GetRawInstance()->GetResourceManager();
-    // MM-3DS: probe do cache sem alocar (string_view; trata __OTR__ e alt
-    // assets). O caminho completo criava 2 strings + ResourceIdentifier por
-    // chamada, e limbs/segmentos/animações passam aqui todo frame.
+    // MM-3DS: allocation-free cache probe (string_view; handles __OTR__ and alt
+    // assets). The full path built 2 strings + a ResourceIdentifier per
+    // call, and limbs/segments/animations go through here every frame.
     if (auto cached = resourceManager->GetCachedResource(std::string_view(path)); cached && !cached->IsDirty()) {
         return cached;
     }
@@ -1659,8 +1659,8 @@ extern "C" char* ResourceMgr_LoadPlayerAnimByName(const char* animPath) {
 }
 
 extern "C" void ResourceMgr_PushCurrentDirectory(char* path) {
-    // 3DS: a LUS do soh-3ds removeu a pilha de diretórios (nada a lia). O MM só
-    // chama isto em código comentado (stubs.c), então vira no-op.
+    // 3DS: the soh-3ds LUS removed the directory stack (nothing read it). MM only
+    // calls this from commented-out code (stubs.c), so it becomes a no-op.
     (void)path;
 }
 

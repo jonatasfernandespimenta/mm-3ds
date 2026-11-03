@@ -1,6 +1,6 @@
-// Majora's Mask: os .o2r são gerados no PC (2S2H desktop) e copiados para
-// sd:/3ds/2ship. A versão de cada arquivo o próprio InitOTR do 2S2H já valida;
-// aqui só garantimos que existem antes de subir a LUS.
+// Majora's Mask: the .o2r files are generated on PC (2S2H desktop) and copied to
+// sd:/3ds/2ship. 2S2H's own InitOTR already validates each file's version;
+// here we only make sure they exist before bringing up LUS.
 #include <3ds.h>
 #include <cstdio>
 #include <string>
@@ -16,8 +16,8 @@ bool Exists(const char* path) {
 
 bool ValidateInstalled(std::string& error) {
     error.clear();
-    if (!Exists("mm.o2r")) error += "faltando mm.o2r\n";
-    if (!Exists("2ship.o2r")) error += "faltando 2ship.o2r\n";
+    if (!Exists("mm.o2r")) error += "missing mm.o2r\n";
+    if (!Exists("2ship.o2r")) error += "missing 2ship.o2r\n";
     return error.empty();
 }
 } // namespace
@@ -37,8 +37,8 @@ extern "C" bool Soh3dsEnsureGameData() {
     while (aptMainLoop()) {
         consoleClear();
         std::printf("2 Ship 2 Harkinian 3DS\n\n"
-                    "Copie mm.o2r e 2ship.o2r para\n/3ds/2ship no cartao SD.\n\n"
-                    "Gere os arquivos com o 2S2H de PC.\n\n%s\nA: tentar de novo   START: sair\n",
+                    "Copy mm.o2r and 2ship.o2r to\n/3ds/2ship on the SD card.\n\n"
+                    "Generate the files with PC 2S2H.\n\n%s\nA: try again   START: exit\n",
                     error.c_str());
         gfxFlushBuffers();
         gfxSwapBuffers();

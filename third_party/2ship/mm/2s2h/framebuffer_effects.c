@@ -2,13 +2,13 @@
 #include "global.h"
 #include "BenPort.h"
 
-// A LUS recebe 6 argumentos; sem forceFixedAspect o 6º chegava como lixo da pilha.
+// LUS takes 6 arguments; without forceFixedAspect the 6th arrived as stack garbage.
 int gfx_create_framebuffer(uint32_t width, uint32_t height, uint32_t native_width, uint32_t native_height,
                            uint8_t resize, bool forceFixedAspect);
 
 #ifdef __3DS__
-// MM 3DS: id Fast3D que o backend citro3d desenha direto na tela de baixo
-// (320x240, 4:3 fixo). Enhancements/DualScreen3DS desenha entre gsSPSetFB/ResetFB.
+// MM 3DS: Fast3D id that the citro3d backend draws straight to the bottom screen
+// (320x240, fixed 4:3). Enhancements/DualScreen3DS draws between gsSPSetFB/ResetFB.
 void Soh3dsSetBottomScreenFramebuffer(int fbId) __attribute__((weak));
 s32 gBottomScreenFrameBuffer = -1;
 #endif

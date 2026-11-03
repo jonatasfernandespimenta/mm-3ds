@@ -1633,9 +1633,9 @@ void Play_Main(GameState* thisx) {
         }
         Play_Update(this);
 #ifdef __3DS__
-        // Avanço rápido da tela de baixo (diálogo/cutscene): atualizações extras
-        // sem desenho. Os "press" são descartados nelas para um toque de botão
-        // não valer várias vezes; para se a cena encerrou o gamestate.
+        // Bottom screen fast-forward (dialogue/cutscene): extra updates without
+        // drawing. "press" is discarded in them so one button tap doesn't
+        // count several times; stops if the scene ended the gamestate.
         for (s32 extra = Mm3dsBottomScreen_FastForwardUpdates(this); extra > 0 && this->state.running; extra--) {
             Input* input = CONTROLLER1(&this->state);
             input->press.button = 0;

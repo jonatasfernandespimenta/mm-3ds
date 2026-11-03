@@ -299,7 +299,7 @@ static const std::unordered_map<int32_t, const char*> windowBackendsMap = {
     { Fast::WindowBackend::FAST3D_DXGI_DX11, "DirectX" },
     { Fast::WindowBackend::FAST3D_SDL_OPENGL, "OpenGL" },
     { Fast::WindowBackend::FAST3D_SDL_METAL, "Metal" },
-    // 3DS: backend PICA200 da LUS do soh-3ds; sem ele o menu faz .at(4) e aborta.
+    // 3DS: PICA200 backend from the soh-3ds LUS; without it the menu does .at(4) and aborts.
     { Fast::WindowBackend::FAST3D_CITRO3D, "Citro3D" },
 };
 

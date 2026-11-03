@@ -196,8 +196,8 @@ void AudioPlayback_ProcessNotes(void) {
         sampleState = &gAudioCtx.sampleStateList[gAudioCtx.sampleStateOffset + i];
         playbackState = &note->playbackState;
         if (playbackState->parentLayer != NO_LAYER) {
-// 3DS: como no Wii U, a heap inteira fica abaixo de 0x7FFFFFFF; a checagem
-// pulava todas as notas ativas (sem release/volume/pitch) e o som degenerava.
+// 3DS: as on Wii U, the whole heap sits below 0x7FFFFFFF; the check
+// skipped every active note (no release/volume/pitch) and the sound degraded.
 #if !defined(__WIIU__) && !defined(__3DS__)
             // OTRTODO: This skips playback if the pointer is below where memory on the N64 normally would be.
             // This does not translate well to modern platforms and how they map memory.
