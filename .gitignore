@@ -28,6 +28,8 @@ _deps/
 *.v64
 *.otr
 *.o2r
+# 2S2H port assets (CC0, no Nintendo data), embedded in the CIA romfs.
+!/platform/3ds/romfs/2ship.o2r
 *.sav
 *.srm
 

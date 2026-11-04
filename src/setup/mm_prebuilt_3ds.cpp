@@ -1,5 +1,6 @@
-// Majora's Mask: the .o2r files are generated on PC (2S2H desktop) and copied to
-// sd:/3ds/2ship. 2S2H's own InitOTR already validates each file's version;
+// Majora's Mask: mm.o2r is generated on PC (2S2H desktop) and copied to
+// sd:/3ds/2ship. 2ship.o2r ships in the app's romfs (a copy on the SD card
+// overrides it). 2S2H's own InitOTR already validates each file's version;
 // here we only make sure they exist before bringing up LUS.
 #include <3ds.h>
 #include <cstdio>
@@ -17,7 +18,7 @@ bool Exists(const char* path) {
 bool ValidateInstalled(std::string& error) {
     error.clear();
     if (!Exists("mm.o2r")) error += "missing mm.o2r\n";
-    if (!Exists("2ship.o2r")) error += "missing 2ship.o2r\n";
+    if (!Exists("2ship.o2r") && !Exists("romfs:/2ship.o2r")) error += "missing 2ship.o2r\n";
     return error.empty();
 }
 } // namespace
@@ -37,8 +38,8 @@ extern "C" bool Soh3dsEnsureGameData() {
     while (aptMainLoop()) {
         consoleClear();
         std::printf("2 Ship 2 Harkinian 3DS\n\n"
-                    "Copy mm.o2r and 2ship.o2r to\n/3ds/2ship on the SD card.\n\n"
-                    "Generate the files with PC 2S2H.\n\n%s\nA: try again   START: exit\n",
+                    "Copy mm.o2r to /3ds/2ship\non the SD card.\n\n"
+                    "Generate it with PC 2S2H 5.0.1\nand your own ROM.\n\n%s\nA: try again   START: exit\n",
                     error.c_str());
         gfxFlushBuffers();
         gfxSwapBuffers();

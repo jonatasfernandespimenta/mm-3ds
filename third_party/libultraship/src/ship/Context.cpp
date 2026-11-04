@@ -1,6 +1,13 @@
 #include "ship/Context.h"
 #include "ship/controller/controldevice/controller/mapping/keyboard/KeyboardScancodes.h"
 #include <cstring>
+#ifdef __3DS__
+extern "C" { // SoH-3DS: bundled port archive in the CIA/3DSX romfs
+#include <3ds/types.h>
+#include <3ds/result.h>
+#include <3ds/romfs.h>
+}
+#endif
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <spdlog/sinks/rotating_file_sink.h>
@@ -631,6 +638,17 @@ std::string Context::LocateFileAcrossAppDirs(const std::string& path, const std:
     if (std::filesystem::exists(fpath)) {
         return fpath;
     }
+#ifdef __3DS__
+    // SoH-3DS: files bundled in the app's romfs (e.g. 2ship.o2r). Checked
+    // after the SD dirs so a copy on the SD card still overrides it.
+    static const bool romfsMounted = R_SUCCEEDED(romfsInit());
+    if (romfsMounted && !std::filesystem::exists("./" + path)) {
+        fpath = "romfs:/" + path;
+        if (std::filesystem::exists(fpath)) {
+            return fpath;
+        }
+    }
+#endif
     // current dir
     return "./" + std::string(path);
 }

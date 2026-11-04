@@ -33,28 +33,28 @@ This is a work in progress, not a finished release. Expect slowdowns in busy are
 
 ## Game data
 
-The 3DS doesn't extract the ROM. Generate the archives on a PC first:
+The game needs one file made from your own ROM, `mm.o2r`. The 3DS can't make it, so do it on a PC once:
 
 1. Install desktop [2 Ship 2 Harkinian **5.0.1**](https://github.com/HarbourMasters/2ship2harkinian/releases)
-   and start it once with your Majora's Mask ROM. It creates `mm.o2r` (next to the executable), and the release
-   ships `2ship.o2r` alongside it.
-2. Copy **both** files to the SD card at `sdmc:/3ds/2ship/`:
+   and start it once with your Majora's Mask ROM. It creates `mm.o2r` next to the executable.
+2. Copy it to the SD card:
 
    ```
    sdmc:/3ds/2ship/mm.o2r
-   sdmc:/3ds/2ship/2ship.o2r
    ```
 
-The archive versions must match the 2S2H version this port is built from (5.0.1). If a file is missing, the
-game says so on the top screen. Copy the files, then press A to try again.
+That's the only file you need. 2S2H's own asset archive (`2ship.o2r`) is already inside the CIA and 3DSX, so
+you don't have to copy it. If you put a `2ship.o2r` in `sdmc:/3ds/2ship/` anyway, that copy is used instead.
+
+`mm.o2r` must come from 2S2H 5.0.1, the version this port is built from. If it's missing, the game says so on
+the top screen. Copy the file, then press A to try again.
 
 ## Install
 
 Before installing, make sure you have everything from [Requirements](#requirements): the DSP dump for sound,
-and `mm.o2r` + `2ship.o2r` in `sdmc:/3ds/2ship/` (see [Game data](#game-data)). The CIA contains only the
-port's code. No ROM or game data is included.
+and `mm.o2r` in `sdmc:/3ds/2ship/` (see [Game data](#game-data)). No ROM or Nintendo game data is included.
 
-### Option A: QR code (no PC needed)
+### Option A: QR code
 
 <img src=".github/qr-install.png" alt="QR code for the latest mm_3ds.cia" width="200">
 
@@ -98,8 +98,7 @@ save and fast-forward (see [Features](#features)).
 ## Troubleshooting
 
 - **No sound:** `sdmc:/3ds/dspfirm.cdc` is missing. Run DSP1 once.
-- **"Copy mm.o2r and 2ship.o2r" screen:** a file is missing from `sdmc:/3ds/2ship/`, or it has the wrong
-  name.
+- **"Copy mm.o2r" screen:** `sdmc:/3ds/2ship/mm.o2r` is missing, or it has the wrong name.
 - **Crash:** with logging enabled, the game writes `lastfatal.txt` and `bootinfo.txt` to `sdmc:/3ds/2ship/`.
   Attach them when you report a bug.
 - **The HOME menu icon didn't change after an update:** the HOME menu caches icons by title version.
@@ -133,7 +132,7 @@ cmake -S . -B build && cmake --build build -j && ctest --test-dir build --output
 | Path | Purpose |
 | --- | --- |
 | `cmake/MM3DS.cmake` | The `mm_3ds` target: MM decomp + 2S2H layer for 3DS, CIA packaging |
-| `src/setup/mm_prebuilt_3ds.cpp` | Checks for `mm.o2r` / `2ship.o2r` on the SD card |
+| `src/setup/mm_prebuilt_3ds.cpp` | Checks for `mm.o2r` on the SD card (`2ship.o2r` is bundled in `platform/3ds/romfs/`) |
 | `third_party/2ship/` | 2S2H source snapshot, with the 3DS changes (`mm/2s2h/Enhancements/DualScreen3DS/` is the bottom screen) |
 | `third_party/libultraship/` | libultraship with the 3DS backend |
 | `platform/3ds/` | PICA200 renderer, audio, input and platform support (from soh-3ds) |

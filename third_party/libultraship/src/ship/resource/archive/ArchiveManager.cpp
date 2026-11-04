@@ -252,6 +252,14 @@ std::vector<std::string> ArchiveManager::GetArchiveListInPaths(const std::vector
                     fileList.push_back(std::filesystem::absolute(archivePath).string());
                 }
             } else if (std::filesystem::is_regular_file(archivePath)) {
+#ifdef __3DS__
+                // SoH-3DS: "romfs:/x" is already absolute; absolute() would
+                // glue the SD working dir in front of it.
+                if (archivePath.find(":/") != std::string::npos) {
+                    fileList.push_back(archivePath);
+                    continue;
+                }
+#endif
                 fileList.push_back(std::filesystem::absolute(archivePath).string());
             } else {
                 SPDLOG_WARN("The archive at path {} does not exist", std::filesystem::absolute(archivePath).string());

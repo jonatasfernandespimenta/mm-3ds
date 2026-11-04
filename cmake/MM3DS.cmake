@@ -140,9 +140,15 @@ set_target_properties(mm_3ds PROPERTIES CXX_STANDARD 20 EXCLUDE_FROM_ALL TRUE)
 
 # CIA: reuses the soh-3ds app.rsf (178 MB on New 3DS). Own title comes
 # later; for now it's just to run on Azahar.
+# romfs: 2S2H's own port assets (2ship.o2r, CC0), stored uncompressed. A copy
+# in sdmc:/3ds/2ship still takes precedence (LocateFileAcrossAppDirs).
+set(MM_ROMFS_DIR "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs")
+file(MAKE_DIRECTORY "${MM_ROMFS_DIR}")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_custom_command(TARGET mm_3ds POST_BUILD
-    COMMAND "${DEVKITPRO}/tools/bin/3dsxtool" $<TARGET_FILE:mm_3ds> $<TARGET_FILE:mm_3ds>.3dsx
-    COMMENT "3dsxtool -> mm_3ds.3dsx")
+    COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/scripts/store-o2r.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/romfs/2ship.o2r" "${MM_ROMFS_DIR}/2ship.o2r"
+    COMMENT "romfs <- 2ship.o2r (stored)")
 
 # CIA: same app.rsf as soh-3ds with its own title/ID (does not overwrite the
 # SoH install) and 178 MB on New 3DS, like the soh_3ds_old profile.
@@ -152,9 +158,6 @@ string(REPLACE "ProductCode             : CTR-P-SOH3" "ProductCode             :
 string(REPLACE "UniqueId                : 0x53480" "UniqueId                : 0x25348" _mm_rsf "${_mm_rsf}")
 string(REPLACE "SystemModeExt                 : 124MB" "SystemModeExt                 : 178MB" _mm_rsf "${_mm_rsf}")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf" CONTENT "${_mm_rsf}")
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs")
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs/README.txt"
-    "Copy mm.o2r and 2ship.o2r to /3ds/2ship on the SD card.\n")
 # MM's own HOME Menu icon/banner (platform/3ds/cia/mm); without them,
 # the soh-3ds ones. The banner comes from bannertool (makebanner -i banner.png -a banner.wav).
 set(_mm_cia_dir "${CMAKE_CURRENT_SOURCE_DIR}/platform/3ds/cia")
@@ -166,15 +169,20 @@ endif()
 if(EXISTS "${_mm_cia_dir}/mm/banner.bnr")
     set(MM_CIA_BANNER "${_mm_cia_dir}/mm/banner.bnr")
 endif()
+# 3dsxtool needs --smdh whenever --romfs is given.
+add_custom_command(TARGET mm_3ds POST_BUILD
+    COMMAND "${DEVKITPRO}/tools/bin/3dsxtool" $<TARGET_FILE:mm_3ds> $<TARGET_FILE:mm_3ds>.3dsx
+        "--smdh=${MM_CIA_ICON}" "--romfs=${MM_ROMFS_DIR}"
+    COMMENT "3dsxtool -> mm_3ds.3dsx")
 add_custom_command(TARGET mm_3ds POST_BUILD
     COMMAND "${DEVKITPRO}/tools/bin/makerom" -f cia
         -o "${CMAKE_CURRENT_BINARY_DIR}/mm_3ds.cia" -elf "$<TARGET_FILE:mm_3ds>"
         # Title version: the HOME Menu only re-reads icon/banner from cache when
         # it changes. Bump the minor when changing the art.
-        -major 1 -minor 1 -micro 0
+        -major 1 -minor 2 -micro 0
         -rsf "${CMAKE_CURRENT_BINARY_DIR}/mm3ds.rsf"
         -icon "${MM_CIA_ICON}"
         -banner "${MM_CIA_BANNER}"
-        "-DROMFS_ROOT=${CMAKE_CURRENT_BINARY_DIR}/mm3ds-romfs" -target t -exefslogo
+        "-DROMFS_ROOT=${MM_ROMFS_DIR}" -target t -exefslogo
     COMMENT "makerom -> mm_3ds.cia"
     VERBATIM)
