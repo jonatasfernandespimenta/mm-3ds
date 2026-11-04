@@ -50,13 +50,36 @@ game says so on the top screen. Copy the files, then press A to try again.
 
 ## Install
 
-There's no prebuilt release yet. Build the CIA (see below), then:
+Before installing, make sure you have everything from [Requirements](#requirements): the DSP dump for sound,
+and `mm.o2r` + `2ship.o2r` in `sdmc:/3ds/2ship/` (see [Game data](#game-data)). The CIA contains only the
+port's code. No ROM or game data is included.
 
-1. Copy `mm_3ds.cia` to the SD card (for example `sdmc:/cias/`).
-2. Open **FBI** and choose *SD → cias → mm_3ds.cia → Install CIA*.
-3. Start it from the HOME menu.
+### Option A: QR code (no PC needed)
 
-It has its own title ID, so it installs alongside Ship of Harkinian 3DS without replacing it.
+<img src=".github/qr-install.png" alt="QR code for the latest mm_3ds.cia" width="200">
+
+1. Connect the 3DS to Wi-Fi.
+2. Open **FBI** and choose **Remote Install → Scan QR Code**.
+3. Point the outer camera at the QR code above, then confirm the install.
+4. Start **2 Ship 2 Harkinian** from the HOME menu.
+
+The QR code always points to the latest release:
+`https://github.com/jonatasfernandespimenta/mm-3ds/releases/latest/download/mm_3ds.cia`.
+To update later, scan it again.
+
+### Option B: download the CIA manually
+
+1. Download `mm_3ds.cia` from the [latest release](https://github.com/jonatasfernandespimenta/mm-3ds/releases/latest).
+2. Copy it to the SD card, for example to `sdmc:/cias/`.
+3. Open **FBI** and choose **SD → cias → mm_3ds.cia → Install CIA**.
+4. Start it from the HOME menu. You can then delete the `.cia` file from the SD card.
+
+It has its own title ID, so it installs alongside Ship of Harkinian 3DS without replacing it. Updating keeps
+your save files, because they live in `sdmc:/3ds/2ship/`.
+
+### Option C: build it yourself
+
+See [Building](#building). The build writes `build-3ds-mk/mm_3ds.cia`. Install it the same way as Option B.
 
 **Over Wi-Fi.** Start ftpd on the 3DS, then run:
 
